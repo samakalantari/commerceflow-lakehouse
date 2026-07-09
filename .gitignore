@@ -4,4 +4,5 @@ __pycache__/
 venv/
 .venv/
 .idea/
-.vscode/
+.vscode/*.bak
+docker-compose.yml.copy

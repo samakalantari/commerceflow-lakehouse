@@ -1,0 +1,6 @@
+--index-url https://package-mirror.liara.ir/repository/pypi/simple
+pymongo==4.13.2
+psycopg2-binary==2.9.10
+confluent-kafka==2.11.0
+fastavro==1.9.4
+httpx==0.28.1
