@@ -6,6 +6,14 @@ venv/
 .idea/
 .vscode/*.bak
 docker-compose.yml.copy
-spark-data/
+
+spark-data/*
+!spark-data/.gitkeep
+
+__pycache__/
+*.py[cod]
+
+*.copy
+
 **/spark-data/
 *.bak*

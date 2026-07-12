@@ -137,13 +137,20 @@ services:
       SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: "no"
       SPARK_SSL_ENABLED: "no"
       HOME: /tmp
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       PYSPARK_PYTHON: /opt/bitnami/python/bin/python3
       PYSPARK_DRIVER_PYTHON: /opt/bitnami/python/bin/python3
+      PYTHONPATH: /opt/spark-apps
+      PYTHONDONTWRITEBYTECODE: "1"
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
+      KAFKA_STARTING_OFFSETS: ${KAFKA_STARTING_OFFSETS:-earliest}
+      KAFKA_MAX_OFFSETS_PER_TRIGGER: ${KAFKA_MAX_OFFSETS_PER_TRIGGER:-10000}
+      SPARK_CHECKPOINT_BASE: ${SPARK_CHECKPOINT_BASE:-/opt/spark-data/checkpoints}
+      STREAM_QUERY_VERSION: ${STREAM_QUERY_VERSION:-v1}
     volumes:
       - spark_logs:/opt/spark/logs
       - spark_ivy:/tmp/.ivy2
-      - ./spark-apps:/opt/spark-apps
+      - ./spark-apps:/opt/spark-apps:ro
       - ./spark-data:/opt/spark-data
     networks:
       - internal
@@ -172,11 +179,19 @@ services:
       HOME: /tmp
       PYSPARK_PYTHON: /opt/bitnami/python/bin/python3
       PYSPARK_DRIVER_PYTHON: /opt/bitnami/python/bin/python3
+      PYTHONPATH: /opt/spark-apps
+      PYTHONDONTWRITEBYTECODE: "1"
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
+      KAFKA_STARTING_OFFSETS: ${KAFKA_STARTING_OFFSETS:-earliest}
+      KAFKA_MAX_OFFSETS_PER_TRIGGER: ${KAFKA_MAX_OFFSETS_PER_TRIGGER:-10000}
+
+      SPARK_CHECKPOINT_BASE: ${SPARK_CHECKPOINT_BASE:-/opt/spark-data/checkpoints}
+      STREAM_QUERY_VERSION: ${STREAM_QUERY_VERSION:-v1}
     volumes:
       - spark_logs:/opt/spark/logs
       - spark_ivy:/tmp/.ivy2
-      - ./spark-apps:/opt/spark-apps
+      - ./spark-apps:/opt/spark-apps:ro
       - ./spark-data:/opt/spark-data
 
   #──────────────────────────────────────────────────────────────────────
