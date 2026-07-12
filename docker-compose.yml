@@ -195,6 +195,82 @@ services:
       - ./spark-data:/opt/spark-data
 
   #──────────────────────────────────────────────────────────────────────
+  # JupyterLab
+  #──────────────────────────────────────────────────────────────────────
+  jupyter:
+    <<: *common-service
+    build:
+      context: .
+      dockerfile: ./jupyter/Dockerfile
+      args:
+        SPARK_IMAGE: ${SPARK_IMAGE}    
+    depends_on:
+      - spark-master
+    hostname: jupyter
+    environment:
+      HOME: /home/jupyter
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN}
+      SPARK_MASTER_URL: spark://spark-master:7077
+      PYSPARK_PYTHON: /opt/bitnami/python/bin/python3
+      PYSPARK_DRIVER_PYTHON: /opt/bitnami/python/bin/python3
+      PYTHONPATH: /opt/spark-apps
+      PYTHONDONTWRITEBYTECODE: "1"
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
+      KAFKA_STARTING_OFFSETS: ${KAFKA_STARTING_OFFSETS:-earliest}
+      KAFKA_MAX_OFFSETS_PER_TRIGGER: ${KAFKA_MAX_OFFSETS_PER_TRIGGER:-10000}
+      SPARK_CHECKPOINT_BASE: ${SPARK_CHECKPOINT_BASE:-/opt/spark-data/checkpoints}
+      STREAM_QUERY_VERSION: ${STREAM_QUERY_VERSION:-v1}
+      PYSPARK_SUBMIT_ARGS: >-
+        --master spark://spark-master:7077
+        --conf spark.driver.host=jupyter
+        --conf spark.driver.bindAddress=0.0.0.0
+        --conf spark.driver.port=39000
+        --conf spark.blockManager.port=39001
+        pyspark-shell
+    command:
+      - /bin/bash
+      - -c
+      - >-
+        exec /opt/bitnami/python/bin/python3 -m jupyter lab
+        --ip=0.0.0.0
+        --port=8888
+        --no-browser
+        --ServerApp.root_dir=/home/jupyter/notebooks
+        --IdentityProvider.token="$${JUPYTER_TOKEN}"
+    expose:
+      - "8888"
+      - "39000"
+      - "39001"
+    volumes:
+      - ./notebooks:/home/jupyter/notebooks
+      - spark_ivy:/tmp/.ivy2
+      - ./spark-apps:/opt/spark-apps:ro
+      - ./spark-data:/opt/spark-data
+    networks:
+      - internal
+      - traefik_network
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          /opt/bitnami/python/bin/python3 -c
+          "import socket; s=socket.create_connection(('127.0.0.1', 8888), 5); s.close()"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK}"
+      - "traefik.http.routers.jupyter.rule=Host(`jupyter.${DOMAIN_SUFFIX}`)"
+      - "traefik.http.routers.jupyter.entrypoints=web"
+      - "traefik.http.routers.jupyter.service=jupyter"
+      - "traefik.http.services.jupyter.loadbalancer.server.port=8888"
+
+
+
+  #──────────────────────────────────────────────────────────────────────
   # Airflow
   #──────────────────────────────────────────────────────────────────────
   airflow-init:
