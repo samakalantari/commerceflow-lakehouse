@@ -4,12 +4,12 @@ import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, to_date, to_timestamp
 
-from spart_app.bronze.config.minio import configure_minio_storage
-from spart_app.bronze.config.topics import BUSINESS_TOPICS, validate_topic
-from spart_app.bronze.schemas.topic_schemas import PARTITION_TS_FIELD
-from spart_app.bronze.sources.kafka_source import read_kafka_stream
-from spart_app.bronze.decoders.avro_decoder import decode
-from spart_app.bronze.sinks.minio_sink import write_bronze_stream
+from spart_apps.bronze.config.minio import configure_minio_storage
+from spart_apps.bronze.config.topics import BUSINESS_TOPICS, validate_topic
+from spart_apps.bronze.schemas.topic_schemas import PARTITION_TS_FIELD
+from spart_apps.bronze.sources.kafka_source import read_kafka_stream
+from spart_apps.bronze.decoders.avro_decoder import decode
+from spart_apps.bronze.sinks.minio_sink import write_bronze_stream
 
 
 def build_spark(app_name: str = "bronze-topic-job") -> SparkSession:
