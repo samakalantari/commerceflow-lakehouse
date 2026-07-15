@@ -9,6 +9,8 @@ BUSINESS_TOPICS = (
     "behavioral.events",
 )
 
+PARTITION_TS_FIELD = "created_at"
+
 
 def validate_topic(topic: str) -> str:
     if topic not in BUSINESS_TOPICS:

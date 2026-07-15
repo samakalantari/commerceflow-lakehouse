@@ -1,0 +1,13 @@
+ARG SPARK_IMAGE
+FROM ${SPARK_IMAGE}
+
+USER root
+
+COPY requirements.txt /tmp/requirements.txt
+
+RUN /opt/bitnami/python/bin/pip install --no-cache-dir \
+    --index-url https://pypi.org/simple \
+    --extra-index-url https://package-mirror.liara.ir/repository/pypi/simple \
+    -r /tmp/requirements.txt
+
+USER 1001

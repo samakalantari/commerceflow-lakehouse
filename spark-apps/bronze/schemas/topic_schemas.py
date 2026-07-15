@@ -1,0 +1,87 @@
+from pyspark.sql.types import StructType, StructField, StringType, DecimalType
+
+SCHEMAS = {
+    "transactional.products": StructType([
+        StructField("product_id", StringType(), True),
+        StructField("category_id", StringType(), True),
+        StructField("name", StringType(), True),
+        StructField("price", DecimalType(18, 2), True),
+        StructField("stock", DecimalType(10, 0), True),
+        StructField("created_at", StringType(), True),
+        StructField("updated_at", StringType(), True),
+    ]),
+    "transactional.categories": StructType([
+        StructField("category_id", StringType(), True),
+        StructField("name", StringType(), True),
+        StructField("parent_category_id", StringType(), True),
+        StructField("created_at", StringType(), True),
+    ]),
+    "transactional.users": StructType([
+        StructField("user_id", StringType(), True),
+        StructField("first_name", StringType(), True),
+        StructField("last_name", StringType(), True),
+        StructField("email", StringType(), True),
+        StructField("phone", StringType(), True),
+        StructField("created_at", StringType(), True),
+        StructField("updated_at", StringType(), True),
+    ]),
+    "transactional.orders": StructType([
+        StructField("order_id", StringType(), True),
+        StructField("user_id", StringType(), True),
+        StructField("subtotal_amount", DecimalType(18, 2), True),
+        StructField("tax_amount", DecimalType(18, 2), True),
+        StructField("shipping_amount", DecimalType(18, 2), True),
+        StructField("total_amount", DecimalType(18, 2), True),
+        StructField("status", StringType(), True),
+        StructField("created_at", StringType(), True),
+        StructField("updated_at", StringType(), True),
+    ]),
+    "transactional.order_items": StructType([
+        StructField("order_item_id", StringType(), True),
+        StructField("order_id", StringType(), True),
+        StructField("product_id", StringType(), True),
+        StructField("quantity", DecimalType(10, 0), True),
+        StructField("unit_price", DecimalType(18, 2), True),
+        StructField("line_total", DecimalType(18, 2), True),
+    ]),
+    "transactional.returns_refunds": StructType([
+        StructField("return_id", StringType(), True),
+        StructField("order_id", StringType(), True),
+        StructField("user_id", StringType(), True),
+        StructField("reason", StringType(), True),
+        StructField("refund_amount", DecimalType(18, 2), True),
+        StructField("status", StringType(), True),
+        StructField("created_at", StringType(), True),
+    ]),
+    "transactional.product_price_history": StructType([
+        StructField("price_history_id", StringType(), True),
+        StructField("product_id", StringType(), True),
+        StructField("old_price", DecimalType(18, 2), True),
+        StructField("new_price", DecimalType(18, 2), True),
+        StructField("changed_at", StringType(), True),
+    ]),
+    "behavioral.events": StructType([
+        StructField("event_id", StringType(), True),
+        StructField("user_id", StringType(), True),
+        StructField("session_id", StringType(), True),
+        StructField("event_type", StringType(), True),
+        StructField("page_url", StringType(), True),
+        StructField("product_id", StringType(), True),
+        StructField("event_timestamp", StringType(), True),
+        StructField("device_type", StringType(), True),
+        StructField("traffic_source", StringType(), True),
+        StructField("ip_address", StringType(), True),
+    ]),
+}
+
+PARTITION_TS_FIELD = {
+    "transactional.products": "updated_at",
+    "transactional.categories": "created_at",
+    "transactional.users": "updated_at",
+    "transactional.orders": "updated_at",
+    "transactional.order_items": "ingested_at",
+    "transactional.returns_refunds": "created_at",
+    "transactional.product_price_history": "changed_at",
+    "behavioral.events": "event_timestamp",
+}
+
