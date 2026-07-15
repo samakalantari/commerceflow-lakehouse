@@ -3,7 +3,7 @@ os.environ["TEST_TOPIC"] = "transactional.categories"
 
 from pyspark.sql import SparkSession
 from decoders.avro_decoder import decode
-from schemas.topic_schemas import PARTITION_TS_FIELD
+from config.topic_metadata import PARTITION_TS_FIELD
 
 #spark = SparkSession.builder.appName("bronze-test").getOrCreate()
 #spark.sparkContext.setLogLevel("WARN")

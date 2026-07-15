@@ -14,10 +14,7 @@ from pyspark.sql.types import (
     ShortType,
 )
 
-try:
-    from schemas.topic_schemas import PARTITION_TS_FIELD
-except ImportError:
-    from spark_apps.bronze.schemas.topic_schemas import PARTITION_TS_FIELD
+from spark_apps.bronze.config.topic_metadata import PARTITION_TS_FIELD
 
 
 NUMERIC_TIMESTAMP_TYPES = (

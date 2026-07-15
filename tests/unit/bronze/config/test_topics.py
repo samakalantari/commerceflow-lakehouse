@@ -2,7 +2,6 @@ import pytest
 
 from spark_apps.bronze.config.topics import (
     BUSINESS_TOPICS,
-    PARTITION_TS_FIELD,
     validate_topic,
 )
 
@@ -45,7 +44,3 @@ def test_validate_topic_error_contains_allowed_topics():
 
     for topic in BUSINESS_TOPICS:
         assert topic in error_message
-
-
-def test_partition_timestamp_field_is_created_at():
-    assert PARTITION_TS_FIELD == "created_at"

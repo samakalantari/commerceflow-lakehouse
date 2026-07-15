@@ -3,7 +3,6 @@ def test_bronze_modules_can_be_imported():
     from spark_apps.bronze.config import topics
     from spark_apps.bronze.decoders import avro_decoder
     from spark_apps.bronze.jobs import bronze_topic_job
-    from spark_apps.bronze.schemas import topic_schemas
     from spark_apps.bronze.sinks import minio_sink
     from spark_apps.bronze.sources import kafka_source
     from spark_apps.bronze.transforms import timestamp_transform
