@@ -33,23 +33,33 @@ services:
   clickhouse:
     <<: *common-service
     image: ${CLICKHOUSE_IMAGE}
+
     ports:
       - "${BIND_IP}:${CLICKHOUSE_HTTP_PORT}:8123"
       - "${BIND_IP}:${CLICKHOUSE_NATIVE_PORT}:9000"
+
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+
     environment:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+
     healthcheck:
-      test: ["CMD-SHELL", "clickhouse-client --user=$$CLICKHOUSE_USER --password=$$CLICKHOUSE_PASSWORD --query='SELECT 1'"]
+      test:
+        [
+          "CMD-SHELL",
+          "clickhouse-client --user=$$CLICKHOUSE_USER --password=$$CLICKHOUSE_PASSWORD --query='SELECT 1'"
+        ]
       interval: 20s
       timeout: 10s
       retries: 5
+
     networks:
       - internal
       - traefik_network
+
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK}"
@@ -57,25 +67,35 @@ services:
       - "traefik.http.routers.clickhouse.entrypoints=web"
       - "traefik.http.services.clickhouse.loadbalancer.server.port=8123"
 
+
   #──────────────────────────────────────────────────────────────────────
   # PostgreSQL
   #──────────────────────────────────────────────────────────────────────
   postgres:
     <<: *common-service
     image: ${POSTGRES_IMAGE}
+
     ports:
       - "${BIND_IP}:${POSTGRES_PORT}:5432"
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
+
 
   #──────────────────────────────────────────────────────────────────────
   # MongoDB
@@ -83,13 +103,17 @@ services:
   mongodb:
     <<: *common-service
     image: ${MONGODB_IMAGE}
+
     ports:
       - "${BIND_IP}:${MONGO_PORT}:27017"
+
     volumes:
       - mongodb_data:/data/db
+
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+
 
   #──────────────────────────────────────────────────────────────────────
   # MinIO
@@ -97,17 +121,23 @@ services:
   minio:
     <<: *common-service
     image: ${MINIO_IMAGE}
+
     ports:
       - "${BIND_IP}:${MINIO_CONSOLE_PORT}:9001"
+
     volumes:
       - minio_data:/data
+
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+
     command: server /data --console-address ":9001"
+
     networks:
       - internal
       - traefik_network
+
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK}"
@@ -122,13 +152,18 @@ services:
       - "traefik.http.routers.minio-console.service=minio-console"
       - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
 
+
   minio-init:
     image: ${MINIO_MC_IMAGE}
+
     depends_on:
       - minio
+
     restart: "no"
+
     networks:
       - internal
+
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -155,7 +190,7 @@ services:
         do
           sleep 2
         done
-        
+
         echo "MinIO is ready."
 
         echo "Creating bucket..."
@@ -195,34 +230,45 @@ services:
           "$${MINIO_ACCESS_KEY}"
 
         echo "MinIO initialization completed."
-        
+
+
   #──────────────────────────────────────────────────────────────────────
-  # Spark
+  # Spark Master
   #──────────────────────────────────────────────────────────────────────
   spark-master:
     <<: *common-service
+
     build:
       context: .
       dockerfile: Dockerfile.spark
       args:
         SPARK_IMAGE: ${SPARK_IMAGE}
-    image: group4-spark:latest   
+
+    image: group4-spark:latest
+
     environment:
       SPARK_MODE: master
       SPARK_MASTER_HOST: spark-master
       SPARK_MASTER_PORT: 7077
+
       SPARK_RPC_AUTHENTICATION_ENABLED: "no"
       SPARK_RPC_ENCRYPTION_ENABLED: "no"
       SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: "no"
       SPARK_SSL_ENABLED: "no"
+
       HOME: /tmp
+
       PYSPARK_PYTHON: /opt/bitnami/python/bin/python3
       PYSPARK_DRIVER_PYTHON: /opt/bitnami/python/bin/python3
       PYTHONDONTWRITEBYTECODE: "1"
+
+      PYTHONPATH: /opt/project
+
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
       KAFKA_STARTING_OFFSETS: ${KAFKA_STARTING_OFFSETS:-earliest}
       KAFKA_MAX_OFFSETS_PER_TRIGGER: ${KAFKA_MAX_OFFSETS_PER_TRIGGER:-10000}
+
       SPARK_CHECKPOINT_BASE: ${SPARK_CHECKPOINT_BASE:-/opt/spark-data/checkpoints}
       STREAM_QUERY_VERSION: ${STREAM_QUERY_VERSION:-v1}
 
@@ -231,17 +277,24 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_SECURE: ${MINIO_SECURE}
       MINIO_BUCKET: ${MINIO_BUCKET}
+
       BRONZE_KAFKA_BASE_PATH: ${BRONZE_KAFKA_BASE_PATH}
       BRONZE_CHECKPOINT_BASE: ${BRONZE_CHECKPOINT_BASE}
-      PYTHONPATH: ${SPARK_APPS_PYTHONPATH:-/opt/spark-apps}
+
     volumes:
       - spark_logs:/opt/spark/logs
       - spark_ivy:/tmp/.ivy2
-      - ./spark-apps:/opt/spark-apps:ro
+
+      - ./spark_apps:/opt/project/spark_apps:ro
+      - ./tests:/opt/project/tests:ro
+      - ./pytest.ini:/opt/project/pytest.ini:ro
+
       - ./spark-data:/opt/spark-data
+
     networks:
       - internal
       - traefik_network
+
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK}"
@@ -249,29 +302,44 @@ services:
       - "traefik.http.routers.spark-master.entrypoints=web"
       - "traefik.http.services.spark-master.loadbalancer.server.port=8080"
 
+
+  #──────────────────────────────────────────────────────────────────────
+  # Spark Worker
+  #──────────────────────────────────────────────────────────────────────
   spark-worker:
     <<: *common-service
+
     build:
       context: .
       dockerfile: Dockerfile.spark
       args:
         SPARK_IMAGE: ${SPARK_IMAGE}
+
     image: group4-spark:latest
+
     depends_on:
       - spark-master
+
     environment:
       SPARK_MODE: worker
       SPARK_MASTER_URL: spark://spark-master:7077
+
       SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY}
       SPARK_WORKER_CORES: ${SPARK_WORKER_CORES}
+
       SPARK_RPC_AUTHENTICATION_ENABLED: "no"
       SPARK_RPC_ENCRYPTION_ENABLED: "no"
       SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: "no"
       SPARK_SSL_ENABLED: "no"
+
       HOME: /tmp
+
       PYSPARK_PYTHON: /opt/bitnami/python/bin/python3
       PYSPARK_DRIVER_PYTHON: /opt/bitnami/python/bin/python3
       PYTHONDONTWRITEBYTECODE: "1"
+
+      PYTHONPATH: /opt/project
+
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
       KAFKA_STARTING_OFFSETS: ${KAFKA_STARTING_OFFSETS:-earliest}
@@ -285,40 +353,56 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_SECURE: ${MINIO_SECURE}
       MINIO_BUCKET: ${MINIO_BUCKET}
+
       BRONZE_KAFKA_BASE_PATH: ${BRONZE_KAFKA_BASE_PATH}
       BRONZE_CHECKPOINT_BASE: ${BRONZE_CHECKPOINT_BASE}
-      PYTHONPATH: ${SPARK_APPS_PYTHONPATH:-/opt/spark-apps}
+
     volumes:
       - spark_logs:/opt/spark/logs
       - spark_ivy:/tmp/.ivy2
-      - ./spark-apps:/opt/spark-apps:ro
+
+      - ./spark_apps:/opt/project/spark_apps:ro
+
       - ./spark-data:/opt/spark-data
+
+    networks:
+      - internal
+
 
   #──────────────────────────────────────────────────────────────────────
   # JupyterLab
   #──────────────────────────────────────────────────────────────────────
   jupyter:
     <<: *common-service
+
     build:
       context: .
       dockerfile: ./jupyter/Dockerfile
       args:
-        SPARK_IMAGE: ${SPARK_IMAGE}    
+        SPARK_IMAGE: ${SPARK_IMAGE}
+
     depends_on:
       - spark-master
+
     hostname: jupyter
+
     environment:
       HOME: /home/jupyter
       JUPYTER_TOKEN: ${JUPYTER_TOKEN}
+
       SPARK_MASTER_URL: spark://spark-master:7077
+
       PYSPARK_PYTHON: /opt/bitnami/python/bin/python3
       PYSPARK_DRIVER_PYTHON: /opt/bitnami/python/bin/python3
-      PYTHONPATH: /opt/spark-apps
       PYTHONDONTWRITEBYTECODE: "1"
+
+      PYTHONPATH: /opt/project
+
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
       KAFKA_STARTING_OFFSETS: ${KAFKA_STARTING_OFFSETS:-earliest}
       KAFKA_MAX_OFFSETS_PER_TRIGGER: ${KAFKA_MAX_OFFSETS_PER_TRIGGER:-10000}
+
       SPARK_CHECKPOINT_BASE: ${SPARK_CHECKPOINT_BASE:-/opt/spark-data/checkpoints}
       STREAM_QUERY_VERSION: ${STREAM_QUERY_VERSION:-v1}
 
@@ -327,7 +411,9 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_SECURE: ${MINIO_SECURE}
       MINIO_BUCKET: ${MINIO_BUCKET}
+
       BRONZE_KAFKA_BASE_PATH: ${BRONZE_KAFKA_BASE_PATH}
+      BRONZE_CHECKPOINT_BASE: ${BRONZE_CHECKPOINT_BASE}
 
       PYSPARK_SUBMIT_ARGS: >-
         --master spark://spark-master:7077
@@ -336,6 +422,7 @@ services:
         --conf spark.driver.port=39000
         --conf spark.blockManager.port=39001
         pyspark-shell
+
     command:
       - /bin/bash
       - -c
@@ -346,18 +433,26 @@ services:
         --no-browser
         --ServerApp.root_dir=/home/jupyter/notebooks
         --IdentityProvider.token="$${JUPYTER_TOKEN}"
+
     expose:
       - "8888"
       - "39000"
       - "39001"
+
     volumes:
       - ./notebooks:/home/jupyter/notebooks
       - spark_ivy:/tmp/.ivy2
-      - ./spark-apps:/opt/spark-apps
+
+      - ./spark_apps:/opt/project/spark_apps:ro
+      - ./tests:/opt/project/tests:ro
+      - ./pytest.ini:/opt/project/pytest.ini:ro
+
       - ./spark-data:/opt/spark-data
+
     networks:
       - internal
       - traefik_network
+
     healthcheck:
       test:
         - CMD-SHELL
@@ -368,6 +463,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 20s
+
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK}"
@@ -377,32 +473,43 @@ services:
       - "traefik.http.services.jupyter.loadbalancer.server.port=8888"
 
 
-
   #──────────────────────────────────────────────────────────────────────
-  # Airflow
+  # Airflow Init
   #──────────────────────────────────────────────────────────────────────
   airflow-init:
     image: ${AIRFLOW_IMAGE}
     user: "${AIRFLOW_UID}:0"
+
     networks:
       - internal
+
     depends_on:
       postgres:
         condition: service_healthy
+
     environment:
+      PYTHONPATH: /opt/project
+
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+        postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
+
+      - ./spark_apps:/opt/project/spark_apps:ro
+
     entrypoint: /bin/bash
+
     command:
       - -c
       - |
         airflow db migrate
+
         airflow users create \
           --username ${AIRFLOW_ADMIN_USER} \
           --password ${AIRFLOW_ADMIN_PASSWORD} \
@@ -410,15 +517,23 @@ services:
           --lastname User \
           --role Admin \
           --email ${AIRFLOW_ADMIN_EMAIL} || true
+
     restart: "no"
 
+
+  #──────────────────────────────────────────────────────────────────────
+  # Airflow Webserver
+  #──────────────────────────────────────────────────────────────────────
   airflow-webserver:
     image: ${AIRFLOW_IMAGE}
     user: "${AIRFLOW_UID}:0"
+
     restart: unless-stopped
+
     networks:
       - internal
       - traefik_network
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -426,28 +541,44 @@ services:
         condition: service_completed_successfully
       statsd-exporter:
         condition: service_started
+
     environment:
+      PYTHONPATH: /opt/project
+
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+        postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
 
       AIRFLOW__METRICS__STATSD_ON: "true"
       AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
       AIRFLOW__METRICS__STATSD_PORT: 9125
       AIRFLOW__METRICS__STATSD_PREFIX: airflow
+
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
-      - ./spark-apps:/opt/spark-apps
+
+      - ./spark_apps:/opt/project/spark_apps:ro
+
     command: webserver
+
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "http://localhost:8080/health"
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
+
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK}"
@@ -455,12 +586,19 @@ services:
       - "traefik.http.routers.airflow.entrypoints=web"
       - "traefik.http.services.airflow.loadbalancer.server.port=8080"
 
+
+  #──────────────────────────────────────────────────────────────────────
+  # Airflow Scheduler
+  #──────────────────────────────────────────────────────────────────────
   airflow-scheduler:
     image: ${AIRFLOW_IMAGE}
     user: "${AIRFLOW_UID}:0"
+
     restart: unless-stopped
+
     networks:
       - internal
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -468,9 +606,13 @@ services:
         condition: service_completed_successfully
       statsd-exporter:
         condition: service_started
+
     environment:
+      PYTHONPATH: /opt/project
+
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+        postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
 
@@ -478,12 +620,16 @@ services:
       AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
       AIRFLOW__METRICS__STATSD_PORT: 9125
       AIRFLOW__METRICS__STATSD_PREFIX: airflow
+
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
-      - ./spark-apps:/opt/spark-apps
+
+      - ./spark_apps:/opt/project/spark_apps:ro
+
     command: scheduler
+
 
   #──────────────────────────────────────────────────────────────────────
   # Metabase
@@ -491,9 +637,11 @@ services:
   metabase:
     <<: *common-service
     image: ${METABASE_IMAGE}
+
     depends_on:
       postgres:
         condition: service_healthy
+
     environment:
       MB_DB_TYPE: postgres
       MB_DB_DBNAME: ${POSTGRES_DB}
@@ -501,9 +649,11 @@ services:
       MB_DB_USER: ${POSTGRES_USER}
       MB_DB_PASS: ${POSTGRES_PASSWORD}
       MB_DB_HOST: postgres
+
     networks:
       - internal
       - traefik_network
+
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK}"
@@ -511,33 +661,45 @@ services:
       - "traefik.http.routers.metabase.entrypoints=web"
       - "traefik.http.services.metabase.loadbalancer.server.port=3000"
 
+
   #──────────────────────────────────────────────────────────────────────
-  # Monitoring
+  # StatsD Exporter
   #──────────────────────────────────────────────────────────────────────
   statsd-exporter:
     <<: *common-service
     image: ${STATSD_EXPORTER_IMAGE}
+
     ports:
       - "${BIND_IP}:${STATSD_TCP_PORT}:9102"
       - "${BIND_IP}:${STATSD_UDP_PORT}:9125/udp"
 
+
+  #──────────────────────────────────────────────────────────────────────
+  # Prometheus
+  #──────────────────────────────────────────────────────────────────────
   prometheus:
     <<: *common-service
     image: ${PROMETHEUS_IMAGE}
+
     depends_on:
       - statsd-exporter
+
     ports:
       - "${BIND_IP}:9090:9090"
+
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
+
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION}"
+
     networks:
       - internal
       - traefik_network
+
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK}"
@@ -545,19 +707,28 @@ services:
       - "traefik.http.routers.prometheus.entrypoints=web"
       - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
+
+  #──────────────────────────────────────────────────────────────────────
+  # Grafana
+  #──────────────────────────────────────────────────────────────────────
   grafana:
     <<: *common-service
     image: ${GRAFANA_IMAGE}
+
     depends_on:
       - prometheus
+
     volumes:
       - grafana_data:/var/lib/grafana
+
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+
     networks:
       - internal
       - traefik_network
+
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK}"

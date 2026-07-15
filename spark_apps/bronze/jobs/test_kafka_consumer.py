@@ -3,9 +3,9 @@ import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, length
 
-from bronze.config.topics import validate_topic
-from bronze.sources.kafka_source import read_kafka_stream
-from bronze.streaming.checkpoint_manager import build_checkpoint_path
+from spart_app.bronze.config.topics import validate_topic
+from spart_app.bronze.sources.kafka_source import read_kafka_stream
+from spart_app.bronze.streaming.checkpoint_manager import build_checkpoint_path
 
 
 bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS")

@@ -2,7 +2,7 @@ import os
 
 from pyspark.sql import SparkSession
 
-from bronze.config.minio import configure_minio_storage
+from spart_app.bronze.config.minio import configure_minio_storage
 
 
 def main() -> None:
