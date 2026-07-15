@@ -262,7 +262,7 @@ services:
       PYSPARK_DRIVER_PYTHON: /opt/bitnami/python/bin/python3
       PYTHONDONTWRITEBYTECODE: "1"
 
-      PYTHONPATH: /opt/project
+      PYTHONPATH: "/opt/project:/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.7-src.zip"
 
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
@@ -284,11 +284,9 @@ services:
     volumes:
       - spark_logs:/opt/spark/logs
       - spark_ivy:/tmp/.ivy2
-
       - ./spark_apps:/opt/project/spark_apps:ro
       - ./tests:/opt/project/tests:ro
       - ./pytest.ini:/opt/project/pytest.ini:ro
-
       - ./spark-data:/opt/spark-data
 
     networks:
@@ -338,7 +336,7 @@ services:
       PYSPARK_DRIVER_PYTHON: /opt/bitnami/python/bin/python3
       PYTHONDONTWRITEBYTECODE: "1"
 
-      PYTHONPATH: /opt/project
+      PYTHONPATH: "/opt/project:/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.7-src.zip"
 
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
@@ -360,9 +358,7 @@ services:
     volumes:
       - spark_logs:/opt/spark/logs
       - spark_ivy:/tmp/.ivy2
-
       - ./spark_apps:/opt/project/spark_apps:ro
-
       - ./spark-data:/opt/spark-data
 
     networks:
@@ -396,7 +392,7 @@ services:
       PYSPARK_DRIVER_PYTHON: /opt/bitnami/python/bin/python3
       PYTHONDONTWRITEBYTECODE: "1"
 
-      PYTHONPATH: /opt/project
+      PYTHONPATH: "/opt/project:/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.7-src.zip"
 
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
@@ -442,11 +438,9 @@ services:
     volumes:
       - ./notebooks:/home/jupyter/notebooks
       - spark_ivy:/tmp/.ivy2
-
       - ./spark_apps:/opt/project/spark_apps:ro
       - ./tests:/opt/project/tests:ro
       - ./pytest.ini:/opt/project/pytest.ini:ro
-
       - ./spark-data:/opt/spark-data
 
     networks:
@@ -471,7 +465,7 @@ services:
       - "traefik.http.routers.jupyter.entrypoints=web"
       - "traefik.http.routers.jupyter.service=jupyter"
       - "traefik.http.services.jupyter.loadbalancer.server.port=8888"
-
+      
 
   #──────────────────────────────────────────────────────────────────────
   # Airflow Init

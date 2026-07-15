@@ -1,14 +1,15 @@
---index-url https://package-mirror.liara.ir/repository/pypi/simple
-pyspark
+pyspark==3.5.5
+pytest>=8,<9
+
 requests>=2.31
-python-dotenv>=1.0
+python-dotenv==1.0.1
 pymongo==4.13.2
 psycopg2-binary==2.9.10
 confluent-kafka==2.11.0
 fastavro==1.9.4
 httpx==0.28.1
+
 jupyterlab>=4.2,<5
 ipykernel>=6.29,<7
 pandas>=2.2,<3
 pyarrow>=16,<22
-pytest>=8,<9
