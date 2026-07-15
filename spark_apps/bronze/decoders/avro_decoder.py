@@ -31,6 +31,13 @@ def decode(df, topic: str, payload_column: str = "value"):
     (limit()/filter() shortcuts on the raw streaming DataFrame are not
     a safe way to produce an "empty" result here).
     """
+    if payload_column not in df.columns:
+        raise ValueError(
+            f"Payload column '{payload_column}' "
+            "not found in DataFrame. "
+            f"Available columns: {df.columns}"
+        )
+    
     avro_schema = _fetch_schema(topic)
 
     if avro_schema is None:
