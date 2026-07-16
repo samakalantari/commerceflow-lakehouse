@@ -240,7 +240,7 @@ def test_add_time_partitions_accepts_iso_utc_strings(
     df = spark.createDataFrame(
         [
             {
-                "event_timestamp": timestamp_value,
+                "timestamp": timestamp_value,
             }
         ]
     )
@@ -267,7 +267,7 @@ def test_add_time_partitions_normalizes_offset_before_partitioning(
     df = spark.createDataFrame(
         [
             {
-                "event_timestamp": (
+                "timestamp": (
                     "2026-07-16T01:30:00+03:30"
                 ),
             }
@@ -328,7 +328,7 @@ def test_add_time_partitions_accepts_epoch_seconds(spark):
     schema = StructType(
         [
             StructField(
-                "event_timestamp",
+                "timestamp",
                 LongType(),
                 True,
             ),
@@ -359,7 +359,7 @@ def test_add_time_partitions_accepts_epoch_milliseconds(spark):
     schema = StructType(
         [
             StructField(
-                "event_timestamp",
+                "timestamp",
                 LongType(),
                 True,
             ),

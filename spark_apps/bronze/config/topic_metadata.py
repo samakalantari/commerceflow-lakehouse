@@ -6,5 +6,5 @@ PARTITION_TS_FIELD = {
     "transactional.order_items": "ingested_at",
     "transactional.returns_refunds": "created_at",
     "transactional.product_price_history": "changed_at",
-    "behavioral.events": "event_timestamp",
+    "behavioral.events": "timestamp",
 }

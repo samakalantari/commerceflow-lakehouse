@@ -1,16 +1,13 @@
-# spark-apps/bronze/jobs/bronze_topic_job.py
 import os
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, to_date, to_timestamp
 
-from spart_apps.bronze.config.minio import configure_minio_storage
-from spart_apps.bronze.config.topics import BUSINESS_TOPICS, validate_topic
-from spart_apps.bronze.schemas.topic_schemas import PARTITION_TS_FIELD
-from spart_apps.bronze.sources.kafka_source import read_kafka_stream
-from spart_apps.bronze.decoders.avro_decoder import decode
-from spart_apps.bronze.sinks.minio_sink import write_bronze_stream
-
+from spark_apps.bronze.config.minio import configure_minio_storage
+from spark_apps.bronze.config.topics import BUSINESS_TOPICS, validate_topic
+from spark_apps.bronze.decoders.avro_decoder import decode
+from spark_apps.bronze.sinks.minio_sink import write_bronze_stream
+from spark_apps.bronze.sources.kafka_source import read_kafka_stream
+from spark_apps.bronze.transforms.timestamp_transform import add_time_partitions
 
 def build_spark(app_name: str = "bronze-topic-job") -> SparkSession:
     spark = SparkSession.builder.appName(app_name).getOrCreate()
@@ -21,35 +18,27 @@ def build_spark(app_name: str = "bronze-topic-job") -> SparkSession:
 def build_stream(spark: SparkSession, topic: str):
     """Read one Kafka topic, decode Avro, apply partitioning, start the write stream."""
     validate_topic(topic)
-    event_time_field = PARTITION_TS_FIELD[topic]
 
     bootstrap_servers = os.environ["KAFKA_BOOTSTRAP_SERVERS"]
     checkpoint_base = os.environ["BRONZE_CHECKPOINT_BASE"]
 
-    raw_stream = read_kafka_stream(spark, bootstrap_servers, topic)
+    raw_stream = read_kafka_stream(spark=spark, bootstrap_servers=bootstrap_servers, topic=topic,)
 
-    # kafka_source aliases the Kafka `value` column as `raw_value` (still carrying
-    # the 5-byte Confluent wire-format header). avro_decoder.decode() strips the
-    # header, fetches the schema from Schema Registry and flattens the fields
-    # directly onto the DataFrame.
     decoded = decode(raw_stream, topic, payload_column="raw_value")
 
     if decoded is None:
-        # Schema Registry has no registered subject for this topic yet
-        # (e.g. no message has been produced on it). Skip it for now instead
-        # of crashing the whole job — it can be picked up on a later restart.
         print(f"[WARN] No schema found for topic '{topic}', skipping.")
         return None
 
-    parsed = (
-        decoded
-        .withColumn(event_time_field, to_timestamp(col(event_time_field)))
-        .withColumn("event_date", to_date(col(event_time_field)))
-        .drop("raw_value")
+    partitioned = add_time_partitions(
+        decoded,
+        topic,
     )
 
-    query = write_bronze_stream(parsed, topic, checkpoint_base)
+    query = write_bronze_stream(partitioned, topic, checkpoint_base)
+    
     print(f"[INFO] Started stream for topic '{topic}' -> checkpoint={checkpoint_base}/{topic.replace('.', '/')}")
+    
     return query
 
 
