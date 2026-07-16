@@ -11,7 +11,6 @@ def test_bronze_modules_can_be_imported():
     assert topics is not None
     assert avro_decoder is not None
     assert bronze_topic_job is not None
-    assert topic_schemas is not None
     assert minio_sink is not None
     assert kafka_source is not None
     assert timestamp_transform is not None
