@@ -8,6 +8,8 @@ from spark_apps.bronze.decoders.avro_decoder import decode
 from spark_apps.bronze.sinks.minio_sink import write_bronze_stream
 from spark_apps.bronze.sources.kafka_source import read_kafka_stream
 from spark_apps.bronze.transforms.timestamp_transform import add_time_partitions
+from spark_apps.bronze.transforms.behavioral_transform import group_behavioral_event_fields
+
 
 def build_spark(app_name: str = "bronze-topic-job") -> SparkSession:
     spark = SparkSession.builder.appName(app_name).getOrCreate()
@@ -29,9 +31,14 @@ def build_stream(spark: SparkSession, topic: str):
     if decoded is None:
         print(f"[WARN] No schema found for topic '{topic}', skipping.")
         return None
+    
+    transformed = group_behavioral_event_fields(
+        decoded,
+        topic,
+    )
 
     partitioned = add_time_partitions(
-        decoded,
+        transformed,
         topic,
     )
 
