@@ -25,6 +25,13 @@ x-common-service: &common-service
     - internal
 
 
+x-airflow-image: &airflow-image
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
+
+  image: group4-airflow:2.7.3-spark
+
 services:
 
   #──────────────────────────────────────────────────────────────────────
@@ -278,6 +285,13 @@ services:
       MINIO_SECURE: ${MINIO_SECURE}
       MINIO_BUCKET: ${MINIO_BUCKET}
 
+
+      ICEBERG_CATALOG_NAME: ${ICEBERG_CATALOG_NAME}
+      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
+      ICEBERG_JDBC_URI: ${ICEBERG_JDBC_URI}
+      ICEBERG_JDBC_USER: ${ICEBERG_JDBC_USER}
+      ICEBERG_JDBC_PASSWORD: ${ICEBERG_JDBC_PASSWORD}
+
       BRONZE_KAFKA_BASE_PATH: ${BRONZE_KAFKA_BASE_PATH}
       BRONZE_CHECKPOINT_BASE: ${BRONZE_CHECKPOINT_BASE}
 
@@ -351,6 +365,12 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_SECURE: ${MINIO_SECURE}
       MINIO_BUCKET: ${MINIO_BUCKET}
+
+      ICEBERG_CATALOG_NAME: ${ICEBERG_CATALOG_NAME}
+      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
+      ICEBERG_JDBC_URI: ${ICEBERG_JDBC_URI}
+      ICEBERG_JDBC_USER: ${ICEBERG_JDBC_USER}
+      ICEBERG_JDBC_PASSWORD: ${ICEBERG_JDBC_PASSWORD}
 
       BRONZE_KAFKA_BASE_PATH: ${BRONZE_KAFKA_BASE_PATH}
       BRONZE_CHECKPOINT_BASE: ${BRONZE_CHECKPOINT_BASE}
@@ -471,7 +491,9 @@ services:
   # Airflow Init
   #──────────────────────────────────────────────────────────────────────
   airflow-init:
-    image: ${AIRFLOW_IMAGE}
+    <<: *airflow-image
+
+
     user: "${AIRFLOW_UID}:0"
 
     networks:
@@ -519,7 +541,8 @@ services:
   # Airflow Webserver
   #──────────────────────────────────────────────────────────────────────
   airflow-webserver:
-    image: ${AIRFLOW_IMAGE}
+    <<: *airflow-image
+
     user: "${AIRFLOW_UID}:0"
 
     restart: unless-stopped
@@ -546,6 +569,12 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
 
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+
+      AIRFLOW__WEBSERVER__BASE_URL: "https://airflow.group4.querabootcamp-de.ir"
+      AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX: "true"
+
+      AIRFLOW__WEBSERVER__SESSION_BACKEND: securecookie
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
 
       AIRFLOW__METRICS__STATSD_ON: "true"
       AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
@@ -585,7 +614,8 @@ services:
   # Airflow Scheduler
   #──────────────────────────────────────────────────────────────────────
   airflow-scheduler:
-    image: ${AIRFLOW_IMAGE}
+    <<: *airflow-image
+
     user: "${AIRFLOW_UID}:0"
 
     restart: unless-stopped
@@ -598,7 +628,11 @@ services:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
+
       statsd-exporter:
+        condition: service_started
+
+      spark-master:
         condition: service_started
 
     environment:
@@ -615,12 +649,31 @@ services:
       AIRFLOW__METRICS__STATSD_PORT: 9125
       AIRFLOW__METRICS__STATSD_PREFIX: airflow
 
+      AIRFLOW_CONN_SPARK_DEFAULT: "spark://spark-master:7077"
+      AIRFLOW_CONN_SPARK_STANDALONE: >-
+       {"conn_type":"spark","host":"spark://spark-master:7077"}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_SECURE: ${MINIO_SECURE}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+
+      ICEBERG_CATALOG_NAME: ${ICEBERG_CATALOG_NAME}
+      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
+      ICEBERG_JDBC_URI: ${ICEBERG_JDBC_URI}
+      ICEBERG_JDBC_USER: ${ICEBERG_JDBC_USER}
+      ICEBERG_JDBC_PASSWORD: ${ICEBERG_JDBC_PASSWORD}
+
+      BRONZE_KAFKA_BASE_PATH: ${BRONZE_KAFKA_BASE_PATH}
+      BRONZE_CHECKPOINT_BASE: ${BRONZE_CHECKPOINT_BASE}
+
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
 
       - ./spark_apps:/opt/project/spark_apps:ro
+      - spark_ivy:/tmp/.ivy2
 
     command: scheduler
 

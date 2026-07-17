@@ -1,10 +1,10 @@
 PARTITION_TS_FIELD = {
-    "transactional.products": "updated_at",
-    "transactional.categories": "created_at",
-    "transactional.users": "updated_at",
-    "transactional.orders": "updated_at",
+    "transactional.products": "ingested_at",
+    "transactional.categories": "ingested_at",
+    "transactional.users": "signup_date",
+    "transactional.orders": "timestamp",
     "transactional.order_items": "ingested_at",
-    "transactional.returns_refunds": "created_at",
-    "transactional.product_price_history": "changed_at",
+    "transactional.returns_refunds": "ingested_at",
+    "transactional.product_price_history": "valid_from",
     "behavioral.events": "timestamp",
 }
