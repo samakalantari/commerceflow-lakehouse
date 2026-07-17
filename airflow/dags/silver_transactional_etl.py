@@ -90,6 +90,8 @@ COMMON_SPARK_CONF = {
 
     "spark.executorEnv.PYTHONDONTWRITEBYTECODE":
         "1",
+    "spark.cores.max": "2",
+    "spark.executor.cores": "2",
 }
 
 
