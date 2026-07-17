@@ -179,7 +179,8 @@ with DAG(
     ),
 
     # Run once per day
-    schedule="@daily",
+    # schedule="@daily",
+    schedule="0 */6 * * *",
 
     catchup=False,
 
