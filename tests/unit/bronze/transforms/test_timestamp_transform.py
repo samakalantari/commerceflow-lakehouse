@@ -32,9 +32,21 @@ def test_add_time_partitions_uses_configured_field_instead_of_ingested_at(
 ):
     schema = StructType(
         [
-            StructField("order_id", StringType(), False),
-            StructField("updated_at", StringType(), True),
-            StructField("ingested_at", StringType(), True),
+            StructField(
+                "order_id",
+                StringType(),
+                False,
+            ),
+            StructField(
+                "timestamp",
+                StringType(),
+                True,
+            ),
+            StructField(
+                "ingested_at",
+                StringType(),
+                True,
+            ),
         ]
     )
 
@@ -80,7 +92,7 @@ def test_add_time_partitions_accepts_standard_datetime_strings(
     df = spark.createDataFrame(
         [
             {
-                "updated_at": timestamp_value,
+                "timestamp": timestamp_value,
             }
         ]
     )
@@ -116,7 +128,7 @@ def test_add_time_partitions_accepts_iso_local_datetime_strings(
     df = spark.createDataFrame(
         [
             {
-                "updated_at": timestamp_value,
+                "timestamp": timestamp_value,
             }
         ]
     )
@@ -134,33 +146,13 @@ def test_add_time_partitions_accepts_iso_local_datetime_strings(
     )
 
 
-def test_add_time_partitions_accepts_date_only_string(spark):
-    df = spark.createDataFrame(
-        [
-            {
-                "created_at": "2026-11-07",
-            }
-        ]
-    )
-
-    row = add_time_partitions(
-        df,
-        "transactional.categories",
-    ).first()
-
-    assert_partition_date(
-        row,
-        year=2026,
-        month=11,
-        day=7,
-    )
-
-
-def test_add_time_partitions_accepts_timestamp_type(spark):
+def test_add_time_partitions_accepts_timestamp_type(
+    spark,
+):
     schema = StructType(
         [
             StructField(
-                "updated_at",
+                "timestamp",
                 TimestampType(),
                 True,
             ),
@@ -170,7 +162,14 @@ def test_add_time_partitions_accepts_timestamp_type(spark):
     df = spark.createDataFrame(
         [
             (
-                datetime(2026, 7, 15, 18, 30, 45),
+                datetime(
+                    2026,
+                    7,
+                    15,
+                    18,
+                    30,
+                    45,
+                ),
             ),
         ],
         schema=schema,
@@ -189,51 +188,18 @@ def test_add_time_partitions_accepts_timestamp_type(spark):
     )
 
 
-def test_add_time_partitions_accepts_date_type(spark):
-    schema = StructType(
-        [
-            StructField(
-                "created_at",
-                DateType(),
-                True,
-            ),
-        ]
-    )
-
-    df = spark.createDataFrame(
-        [
-            (
-                date(2026, 11, 7),
-            ),
-        ],
-        schema=schema,
-    )
-
-    row = add_time_partitions(
-        df,
-        "transactional.categories",
-    ).first()
-
-    assert_partition_date(
-        row,
-        year=2026,
-        month=11,
-        day=7,
-    )
-
-
 @pytest.mark.parametrize(
     "timestamp_value",
     [
-        "2026-07-15T22:00:00Z",
-        "2026-07-15T22:00:00+00:00",
+        "2026-07-15T18:30:00",
+        "2026-07-15T18:30:00.123",
     ],
     ids=[
-        "iso-zulu",
-        "iso-explicit-utc-offset",
+        "iso-local-seconds",
+        "iso-local-milliseconds",
     ],
 )
-def test_add_time_partitions_accepts_iso_utc_strings(
+def test_add_time_partitions_accepts_iso_local_datetime_strings(
     spark,
     timestamp_value,
 ):
@@ -247,7 +213,7 @@ def test_add_time_partitions_accepts_iso_utc_strings(
 
     row = add_time_partitions(
         df,
-        "behavioral.events",
+        "transactional.orders",
     ).first()
 
     assert_partition_date(
@@ -309,7 +275,7 @@ def test_add_time_partitions_does_not_accept_ambiguous_strings(
     df = spark.createDataFrame(
         [
             {
-                "updated_at": ambiguous_value,
+                "timestamp": ambiguous_value,
             }
         ]
     )
@@ -438,18 +404,22 @@ def test_add_time_partitions_raises_when_configured_and_fallback_fields_missing(
         )
 
 
-def test_add_time_partitions_rejects_unsupported_topic(spark):
+def test_add_time_partitions_rejects_unsupported_topic(
+    spark,
+):
     df = spark.createDataFrame(
         [
             {
-                "ingested_at": "2026-07-15 18:30:00",
+                "ingested_at": (
+                    "2026-07-15 18:30:00"
+                ),
             }
         ]
     )
 
     with pytest.raises(
         ValueError,
-        match="Unsupported topic",
+        match="No partition configuration found",
     ):
         add_time_partitions(
             df,
@@ -457,12 +427,16 @@ def test_add_time_partitions_rejects_unsupported_topic(spark):
         )
 
 
-def test_add_time_partitions_preserves_original_columns(spark):
+def test_add_time_partitions_preserves_original_columns(
+    spark,
+):
     df = spark.createDataFrame(
         [
             {
                 "order_id": "order-1",
-                "updated_at": "2026-07-15 18:30:00",
+                "timestamp": (
+                    "2026-07-15 18:30:00"
+                ),
                 "status": "paid",
             }
         ]
@@ -476,7 +450,7 @@ def test_add_time_partitions_preserves_original_columns(spark):
     assert result_df.columns == [
         "order_id",
         "status",
-        "updated_at",
+        "timestamp",
         "year",
         "month",
         "day",
@@ -489,7 +463,9 @@ def test_add_time_partitions_removes_internal_helper_column(
     df = spark.createDataFrame(
         [
             {
-                "updated_at": "2026-07-15 18:30:00",
+                "timestamp": (
+                    "2026-07-15 18:30:00"
+                ),
             }
         ]
     )
@@ -499,7 +475,10 @@ def test_add_time_partitions_removes_internal_helper_column(
         "transactional.orders",
     )
 
-    assert "__partition_timestamp" not in result_df.columns
+    assert (
+        "__partition_timestamp"
+        not in result_df.columns
+    )
 
 
 def test_add_time_partitions_returns_null_for_invalid_timestamp(
@@ -508,7 +487,9 @@ def test_add_time_partitions_returns_null_for_invalid_timestamp(
     df = spark.createDataFrame(
         [
             {
-                "updated_at": "not-a-valid-timestamp",
+                "timestamp": (
+                    "not-a-valid-timestamp"
+                ),
             }
         ]
     )
@@ -529,7 +510,7 @@ def test_add_time_partitions_returns_null_for_null_timestamp(
     schema = StructType(
         [
             StructField(
-                "updated_at",
+                "timestamp",
                 StringType(),
                 True,
             ),
@@ -537,7 +518,9 @@ def test_add_time_partitions_returns_null_for_null_timestamp(
     )
 
     df = spark.createDataFrame(
-        [(None,)],
+        [
+            (None,),
+        ],
         schema=schema,
     )
 
@@ -549,3 +532,60 @@ def test_add_time_partitions_returns_null_for_null_timestamp(
     assert row["year"] is None
     assert row["month"] is None
     assert row["day"] is None
+
+    
+def test_add_time_partitions_returns_categories_unchanged(
+    spark,
+):
+    schema = StructType(
+        [
+            StructField(
+                "category_id",
+                StringType(),
+                False,
+            ),
+            StructField(
+                "name",
+                StringType(),
+                True,
+            ),
+            StructField(
+                "parent_category_id",
+                StringType(),
+                True,
+            ),
+            StructField(
+                "ingested_at",
+                StringType(),
+                False,
+            ),
+        ]
+    )
+
+    df = spark.createDataFrame(
+        [
+            (
+                "C1",
+                "Electronics",
+                None,
+                "2026-07-16 10:00:00",
+            )
+        ],
+        schema=schema,
+    )
+
+    result_df = add_time_partitions(
+        df=df,
+        topic="transactional.categories",
+    )
+
+    assert result_df.columns == df.columns
+
+    assert "year" not in result_df.columns
+    assert "month" not in result_df.columns
+    assert "day" not in result_df.columns
+
+    assert (
+        result_df.first().asDict()
+        == df.first().asDict()
+    )

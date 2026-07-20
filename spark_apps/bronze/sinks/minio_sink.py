@@ -1,17 +1,21 @@
 import os
+from typing import Optional
+
 from pyspark.sql import DataFrame
 
-PARTITION_COLUMNS = (
-    "year",
-    "month",
-    "day",
+from spark_apps.bronze.config.topic_metadata import (
+    get_partition_columns,
 )
 
 
-def _validate_partition_columns(df: DataFrame) -> None:
+def _validate_partition_columns(df: DataFrame, partition_columns: tuple[str, ...],) -> None:
+    
+    if not partition_columns:
+        return
+
     missing_columns = [
         column
-        for column in PARTITION_COLUMNS
+        for column in partition_columns
         if column not in df.columns
     ]
 
@@ -25,26 +29,73 @@ def _validate_partition_columns(df: DataFrame) -> None:
 
 
 def write_bronze_stream(df: DataFrame, topic: str, checkpoint_base: str):
-    _validate_partition_columns(df)
-    
-    path = _topic_to_path(topic)
-    checkpoint = f"{checkpoint_base}/{topic.replace('.', '/')}"
+    partition_columns = (
+        get_partition_columns(topic)
+    )
 
-    return (
+    _validate_partition_columns(df=df, partition_columns=partition_columns)
+
+    path = _topic_to_path(topic=topic)
+
+    checkpoint = _topic_to_checkpoint(checkpoint_base=checkpoint_base, topic=topic)
+
+    writer = (
         df.writeStream
         .format("parquet")
         .option("path", path)
         .option("checkpointLocation", checkpoint)
-        .partitionBy(*PARTITION_COLUMNS)
         .outputMode("append")
-        .start()
     )
 
-def _topic_to_path(topic: str) -> str:
-    base = os.environ["BRONZE_KAFKA_BASE_PATH"].rstrip("/")
-    return f"{base}/{topic.replace('.', '/')}"
+    if partition_columns:
+        writer = writer.partitionBy(
+            *partition_columns
+        )
 
-def _topic_to_checkpoint(checkpoint_base: str, topic: str,) -> str:
+    return writer.start()
+
+
+def write_bronze_batch(df: DataFrame, topic: str, output_base_path: str, mode: str = "errorifexists") -> str:
+    partition_columns = (
+        get_partition_columns(topic)
+    )
+
+    _validate_partition_columns(df=df, partition_columns=partition_columns)
+
+    output_path = _topic_to_path(topic=topic, base_path=output_base_path)
+
+    writer = (
+        df.write
+        .format("parquet")
+        .mode(mode)
+    )
+
+    if partition_columns:
+        writer = writer.partitionBy(
+            *partition_columns
+        )
+
+    writer.save(
+        output_path
+    )
+
+    return output_path
+
+
+def _topic_to_path(topic: str, base_path: Optional[str] = None,) -> str:
+    if base_path is None:
+        base_path = os.environ["BRONZE_KAFKA_BASE_PATH"]
+
+    base = base_path.rstrip("/")
+
+    topic_path = topic.replace(".", "/")
+
+    return f"{base}/{topic_path}"
+
+
+def _topic_to_checkpoint(checkpoint_base: str, topic: str) -> str:
     base = checkpoint_base.rstrip("/")
 
-    return (f"{base}/"f"{topic.replace('.', '/')}")
+    topic_path = topic.replace(".","/",)
+
+    return f"{base}/{topic_path}"
