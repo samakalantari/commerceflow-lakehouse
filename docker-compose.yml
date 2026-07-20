@@ -302,6 +302,8 @@ services:
       - ./tests:/opt/project/tests:ro
       - ./pytest.ini:/opt/project/pytest.ini:ro
       - ./spark-data:/opt/spark-data
+    ports:
+      - "127.0.0.1:10000:10000"
 
     networks:
       - internal
@@ -396,6 +398,9 @@ services:
       dockerfile: ./jupyter/Dockerfile
       args:
         SPARK_IMAGE: ${SPARK_IMAGE}
+      
+    cpus: "1.0"
+    mem_limit: 2G
 
     depends_on:
       - spark-master
@@ -710,12 +715,12 @@ services:
 
 
   #──────────────────────────────────────────────────────────────────────
-  # StatsD Exporter
+  # Exporters
   #──────────────────────────────────────────────────────────────────────
   statsd-exporter:
     <<: *common-service
     image: ${STATSD_EXPORTER_IMAGE}
-
+    container_name: statsd-exporter
     ports:
       - "${BIND_IP}:${STATSD_TCP_PORT}:9102"
       - "${BIND_IP}:${STATSD_UDP_PORT}:9125/udp"
@@ -767,6 +772,9 @@ services:
 
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
 
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
