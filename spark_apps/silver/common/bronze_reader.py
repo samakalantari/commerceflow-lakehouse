@@ -50,10 +50,15 @@ def read_bronze_topic(
     """
     Read a Bronze Kafka topic stored as Parquet.
     """
-    path = bronze_topic_path(
-        topic
-    )
+    path = bronze_topic_path(topic)
 
-    return spark.read.parquet(
-        path
+    return (
+        spark.read
+        .option(
+            "basePath",
+            path,
+        )
+        .parquet(
+            f"{path}/year=*/month=*/day=*"
+        )
     )

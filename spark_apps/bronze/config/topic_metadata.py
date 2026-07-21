@@ -10,7 +10,14 @@ TOPIC_PARTITION_CONFIG: Dict[
     str,
     Optional[PartitionConfig],
 ] = {
-    "transactional.categories": None,
+    "transactional.categories": {
+        "timestamp_field": "ingested_at",
+        "columns": (
+            "year",
+            "month",
+            "day",
+        ),
+    },
     "transactional.products": {
         "timestamp_field": "ingested_at",
         "columns": (
