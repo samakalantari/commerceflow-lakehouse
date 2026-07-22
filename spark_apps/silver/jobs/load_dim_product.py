@@ -120,161 +120,175 @@ def main() -> None:
         )
 
         # -----------------------------------------------------
-        # 4. Create staging view
+        # 4. Pre-write source audit
+        #
+        # Validate the canonical SCD2 source before replacing
+        # the Iceberg target table.
         # -----------------------------------------------------
 
-        source_df.createOrReplaceTempView(
+        source_invalid_current = (
+            source_df
+            .groupBy(
+                "product_id"
+            )
+            .agg(
+                F.sum(
+                    F.when(
+                        F.col("is_current"),
+                        1,
+                    ).otherwise(
+                        0
+                    )
+                ).alias(
+                    "current_count"
+                )
+            )
+            .filter(
+                F.col(
+                    "current_count"
+                ) != 1
+            )
+            .count()
+        )
+
+        source_duplicate_product_sk = (
+            source_df
+            .groupBy(
+                "product_sk"
+            )
+            .count()
+            .filter(
+                F.col(
+                    "count"
+                ) > 1
+            )
+            .count()
+        )
+
+        print()
+        print("DIM_PRODUCT SOURCE AUDIT")
+        print("-" * 100)
+
+        print(
+            f"Source rows: "
+            f"{source_count:,}"
+        )
+
+        print(
+            f"Distinct products: "
+            f"{distinct_products:,}"
+        )
+
+        print(
+            f"Current versions: "
+            f"{current_count:,}"
+        )
+
+        print(
+            f"Products with invalid "
+            f"current-version count: "
+            f"{source_invalid_current:,}"
+        )
+
+        print(
+            f"Duplicate product_sk: "
+            f"{source_duplicate_product_sk:,}"
+        )
+
+        if (
+            current_count
+            !=
+            distinct_products
+            or
+            source_invalid_current
+            !=
+            0
+            or
+            source_duplicate_product_sk
+            !=
+            0
+        ):
+            raise RuntimeError(
+                "DIM_PRODUCT canonical source audit failed. "
+                "Iceberg table was not overwritten."
+            )
+
+        print(
+            "[PASS] DIM_PRODUCT canonical "
+            "source audit completed."
+        )
+
+        # -----------------------------------------------------
+        # 5. Prepare final Silver rows
+        # -----------------------------------------------------
+
+        write_df = (
+            source_df
+            .withColumn(
+                "silver_created_at",
+                F.current_timestamp(),
+            )
+            .withColumn(
+                "silver_updated_at",
+                F.current_timestamp(),
+            )
+            .select(
+                "product_sk",
+                "product_id",
+                "product_name",
+                "price",
+                "effective_from",
+                "effective_to",
+                "is_current",
+                "record_hash",
+                "source_kind",
+                "source_kafka_timestamp",
+                "silver_created_at",
+                "silver_updated_at",
+            )
+        )
+
+        write_df.createOrReplaceTempView(
             "staged_dim_product"
         )
 
         # -----------------------------------------------------
-        # 5. Idempotent Iceberg MERGE
+        # 6. Atomic full overwrite
         #
-        # Same product_sk + no changes:
-        #     no update
-        #
-        # Same product_sk + changed attributes:
-        #     update
-        #
-        # New product_sk:
-        #     insert
-        #
-        # <=> is Spark SQL null-safe equality.
-        # This is important for effective_to.
+        # source_df represents the complete canonical SCD2
+        # dataset rebuilt from Bronze.
         # -----------------------------------------------------
 
         spark.sql(
             f"""
-            MERGE INTO
-                {DIM_PRODUCT} AS target
+            INSERT OVERWRITE TABLE
+                {DIM_PRODUCT}
 
-            USING
-                staged_dim_product AS source
+            SELECT
+                product_sk,
+                product_id,
+                product_name,
+                CAST(price AS DECIMAL(10,2)),
+                effective_from,
+                effective_to,
+                is_current,
+                record_hash,
+                source_kind,
+                source_kafka_timestamp,
+                silver_created_at,
+                silver_updated_at
 
-            ON
-                target.product_sk =
-                source.product_sk
-
-            WHEN MATCHED
-            AND (
-                NOT (
-                    target.product_name
-                    <=>
-                    source.product_name
-                )
-
-                OR NOT (
-                    target.price
-                    <=>
-                    source.price
-                )
-
-                OR NOT (
-                    target.effective_from
-                    <=>
-                    source.effective_from
-                )
-
-                OR NOT (
-                    target.effective_to
-                    <=>
-                    source.effective_to
-                )
-
-                OR NOT (
-                    target.is_current
-                    <=>
-                    source.is_current
-                )
-
-                OR NOT (
-                    target.record_hash
-                    <=>
-                    source.record_hash
-                )
-
-                OR NOT (
-                    target.source_kind
-                    <=>
-                    source.source_kind
-                )
-
-                OR NOT (
-                    target.source_kafka_timestamp
-                    <=>
-                    source.source_kafka_timestamp
-                )
-            )
-
-            THEN UPDATE SET
-
-                target.product_name =
-                    source.product_name,
-
-                target.price =
-                    source.price,
-
-                target.effective_from =
-                    source.effective_from,
-
-                target.effective_to =
-                    source.effective_to,
-
-                target.is_current =
-                    source.is_current,
-
-                target.record_hash =
-                    source.record_hash,
-
-                target.source_kind =
-                    source.source_kind,
-
-                target.source_kafka_timestamp =
-                    source.source_kafka_timestamp,
-
-                target.silver_updated_at =
-                    current_timestamp()
-
-            WHEN NOT MATCHED THEN
-
-                INSERT (
-                    product_sk,
-                    product_id,
-                    product_name,
-                    price,
-                    effective_from,
-                    effective_to,
-                    is_current,
-                    record_hash,
-                    source_kind,
-                    source_kafka_timestamp,
-                    silver_created_at,
-                    silver_updated_at
-                )
-
-                VALUES (
-                    source.product_sk,
-                    source.product_id,
-                    source.product_name,
-                    source.price,
-                    source.effective_from,
-                    source.effective_to,
-                    source.is_current,
-                    source.record_hash,
-                    source.source_kind,
-                    source.source_kafka_timestamp,
-                    current_timestamp(),
-                    current_timestamp()
-                )
+            FROM
+                staged_dim_product
             """
         )
 
         print(
-            "[PASS] DIM_PRODUCT MERGE completed."
+            "[PASS] DIM_PRODUCT FULL OVERWRITE completed."
         )
 
         # -----------------------------------------------------
-        # 6. Final Audit
+        # 7. Final Audit
         # -----------------------------------------------------
 
         dim_df = spark.table(
@@ -306,18 +320,24 @@ def main() -> None:
 
         invalid_current = (
             dim_df
-            .filter(
-                F.col(
-                    "is_current"
-                )
-            )
             .groupBy(
                 "product_id"
             )
-            .count()
+            .agg(
+                F.sum(
+                    F.when(
+                        F.col("is_current"),
+                        1,
+                    ).otherwise(
+                        0
+                    )
+                ).alias(
+                    "current_count"
+                )
+            )
             .filter(
                 F.col(
-                    "count"
+                    "current_count"
                 ) != 1
             )
             .count()
