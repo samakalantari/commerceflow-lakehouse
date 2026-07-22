@@ -9,7 +9,7 @@ def build_fact_order_item_source(
     dim_product_df: DataFrame,
 ) -> DataFrame:
     """
-    Build fact_order_item.
+    Build canonical fact_order_item source.
 
     Grain:
         One row per order_item_id.
@@ -20,56 +20,130 @@ def build_fact_order_item_source(
     """
 
     # ---------------------------------------------------------
-    # 1. Clean source order items
+    # 1. Clean and normalize source order items
     # ---------------------------------------------------------
 
-    items = (
+    normalized_items = (
         items_df
         .filter(
-            F.col("order_item_id").isNotNull()
-        )
-        .filter(
-            F.col("order_id").isNotNull()
-        )
-        .filter(
-            F.col("product_id").isNotNull()
-        )
-        .filter(
-            F.col("quantity") > 0
-        )
-        .filter(
-            F.col("unit_price") >= 0
-        )
-        .select(
-            F.trim(
-                F.col("order_item_id")
-            ).alias(
+            F.col(
                 "order_item_id"
-            ),
-
-            F.trim(
-                F.col("order_id")
-            ).alias(
+            ).isNotNull()
+        )
+        .filter(
+            F.col(
                 "order_id"
-            ),
-
-            F.trim(
-                F.col("product_id")
-            ).alias(
+            ).isNotNull()
+        )
+        .filter(
+            F.col(
                 "product_id"
-            ),
-
+            ).isNotNull()
+        )
+        .filter(
             F.col(
                 "quantity"
-            ),
-
+            ) > 0
+        )
+        .filter(
             F.col(
                 "unit_price"
+            ) >= 0
+        )
+        .withColumn(
+            "order_item_id",
+            F.trim(
+                F.col(
+                    "order_item_id"
+                )
             ),
+        )
+        .withColumn(
+            "order_id",
+            F.trim(
+                F.col(
+                    "order_id"
+                )
+            ),
+        )
+        .withColumn(
+            "product_id",
+            F.trim(
+                F.col(
+                    "product_id"
+                )
+            ),
+        )
+        .filter(
+            F.length(
+                F.col(
+                    "order_item_id"
+                )
+            ) > 0
+        )
+        .filter(
+            F.length(
+                F.col(
+                    "order_id"
+                )
+            ) > 0
+        )
+        .filter(
+            F.length(
+                F.col(
+                    "product_id"
+                )
+            ) > 0
+        )
+    )
 
+    # ---------------------------------------------------------
+    # 2. Deduplicate order items
+    #
+    # Keep the latest Kafka version per order_item_id.
+    # ---------------------------------------------------------
+
+    latest_item_window = (
+        Window
+        .partitionBy(
+            "order_item_id"
+        )
+        .orderBy(
             F.col(
-                "item_total_amount"
+                "kafka_timestamp"
+            ).desc(),
+            F.col(
+                "kafka_partition"
+            ).desc(),
+            F.col(
+                "kafka_offset"
+            ).desc(),
+        )
+    )
+
+    items = (
+        normalized_items
+        .withColumn(
+            "_row_number",
+            F.row_number().over(
+                latest_item_window
             ),
+        )
+        .filter(
+            F.col(
+                "_row_number"
+            ) == 1
+        )
+        .drop(
+            "_row_number"
+        )
+        .select(
+            "order_item_id",
+            "order_id",
+            "product_id",
+            "quantity",
+            "unit_price",
+            "item_total_amount",
 
             F.col(
                 "kafka_timestamp"
@@ -80,16 +154,20 @@ def build_fact_order_item_source(
     )
 
     # ---------------------------------------------------------
-    # 2. Attach order information
+    # 3. Attach order information
     # ---------------------------------------------------------
 
     items_with_order = (
         items.alias("i")
         .join(
             fact_order_df.alias("o"),
-            F.col("i.order_id")
+            F.col(
+                "i.order_id"
+            )
             ==
-            F.col("o.order_id"),
+            F.col(
+                "o.order_id"
+            ),
             how="left",
         )
         .select(
@@ -156,7 +234,7 @@ def build_fact_order_item_source(
     )
 
     # ---------------------------------------------------------
-    # 3. Temporal SCD2 lookup
+    # 4. Temporal SCD2 product lookup
     # ---------------------------------------------------------
 
     temporal_matches = (
@@ -270,8 +348,9 @@ def build_fact_order_item_source(
     )
 
     # ---------------------------------------------------------
-    # 4. Earliest known product version
-    #    Used only when temporal lookup fails
+    # 5. Earliest known product version
+    #
+    # Used only when temporal lookup cannot find a version.
     # ---------------------------------------------------------
 
     earliest_window = (
@@ -295,7 +374,9 @@ def build_fact_order_item_source(
             ),
         )
         .filter(
-            F.col("_rn") == 1
+            F.col(
+                "_rn"
+            ) == 1
         )
         .select(
             F.col(
@@ -313,7 +394,7 @@ def build_fact_order_item_source(
     )
 
     # ---------------------------------------------------------
-    # 5. Resolve final product surrogate key
+    # 6. Resolve final product surrogate key
     # ---------------------------------------------------------
 
     resolved = (
@@ -358,7 +439,7 @@ def build_fact_order_item_source(
     )
 
     # ---------------------------------------------------------
-    # 6. Final Fact structure
+    # 7. Final Fact structure
     # ---------------------------------------------------------
 
     result = (

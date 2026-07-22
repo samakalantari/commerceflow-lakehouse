@@ -29,6 +29,10 @@ def main() -> None:
         print("BUILDING FACT_ORDER_ITEM")
         print("=" * 100)
 
+        # -----------------------------------------------------
+        # 1. Read source data
+        # -----------------------------------------------------
+
         items_df = read_bronze_topic(
             spark,
             TOPIC_ORDER_ITEMS,
@@ -42,6 +46,10 @@ def main() -> None:
             DIM_PRODUCT
         )
 
+        # -----------------------------------------------------
+        # 2. Build canonical source
+        # -----------------------------------------------------
+
         source_df = (
             build_fact_order_item_source(
                 items_df,
@@ -53,6 +61,29 @@ def main() -> None:
 
         source_count = (
             source_df.count()
+        )
+
+        source_distinct_items = (
+            source_df
+            .select(
+                "order_item_id"
+            )
+            .distinct()
+            .count()
+        )
+
+        duplicate_order_item_sk = (
+            source_df
+            .groupBy(
+                "order_item_sk"
+            )
+            .count()
+            .filter(
+                F.col(
+                    "count"
+                ) > 1
+            )
+            .count()
         )
 
         temporal_count = (
@@ -99,9 +130,27 @@ def main() -> None:
             .count()
         )
 
+        # -----------------------------------------------------
+        # 3. Pre-write source audit
+        # -----------------------------------------------------
+
+        print()
+        print("FACT_ORDER_ITEM SOURCE AUDIT")
+        print("-" * 100)
+
         print(
-            f"Source order items: "
+            f"Source rows: "
             f"{source_count:,}"
+        )
+
+        print(
+            f"Distinct items: "
+            f"{source_distinct_items:,}"
+        )
+
+        print(
+            f"Duplicate order_item_sk: "
+            f"{duplicate_order_item_sk:,}"
         )
 
         print(
@@ -124,8 +173,35 @@ def main() -> None:
             f"{missing_order_sk:,}"
         )
 
+        if (
+            source_count
+            !=
+            source_distinct_items
+            or
+            duplicate_order_item_sk
+            !=
+            0
+            or
+            missing_product_sk
+            !=
+            0
+            or
+            missing_order_sk
+            !=
+            0
+        ):
+            raise RuntimeError(
+                "FACT_ORDER_ITEM canonical "
+                "source audit failed."
+            )
+
+        print(
+            "[PASS] FACT_ORDER_ITEM canonical "
+            "source audit completed."
+        )
+
         # -----------------------------------------------------
-        # Create Iceberg fact table
+        # 4. Create Iceberg fact table
         # -----------------------------------------------------
 
         spark.sql(
@@ -159,137 +235,81 @@ def main() -> None:
             """
         )
 
-        source_df.createOrReplaceTempView(
-            "staged_fact_order_item"
+        # -----------------------------------------------------
+        # 5. Prepare final rows
+        # -----------------------------------------------------
+
+        write_df = (
+            source_df
+            .withColumn(
+                "unit_price",
+                F.col(
+                    "unit_price"
+                ).cast(
+                    "decimal(10,2)"
+                ),
+            )
+            .withColumn(
+                "item_total_amount",
+                F.col(
+                    "item_total_amount"
+                ).cast(
+                    "decimal(10,2)"
+                ),
+            )
+            .withColumn(
+                "silver_created_at",
+                F.current_timestamp(),
+            )
+            .withColumn(
+                "silver_updated_at",
+                F.current_timestamp(),
+            )
+            .select(
+                "order_item_sk",
+                "order_item_id",
+                "order_sk",
+                "order_id",
+                "product_sk",
+                "product_id",
+                "order_date_sk",
+                "order_timestamp",
+                "quantity",
+                "unit_price",
+                "item_total_amount",
+                "product_resolution",
+                "source_kafka_timestamp",
+                "silver_created_at",
+                "silver_updated_at",
+            )
         )
 
         # -----------------------------------------------------
-        # Idempotent MERGE
+        # 6. Full Iceberg overwrite
+        #
+        # Replace stale or duplicated target rows with the
+        # complete canonical source.
         # -----------------------------------------------------
 
-        spark.sql(
-            f"""
-            MERGE INTO
-                {FACT_ORDER_ITEM} AS target
-
-            USING
-                staged_fact_order_item AS source
-
-            ON
-                target.order_item_id =
-                source.order_item_id
-
-            WHEN MATCHED
-            AND (
-                target.order_sk
-                    <> source.order_sk
-
-                OR target.product_sk
-                    <> source.product_sk
-
-                OR target.order_date_sk
-                    <> source.order_date_sk
-
-                OR target.order_timestamp
-                    <> source.order_timestamp
-
-                OR target.quantity
-                    <> source.quantity
-
-                OR target.unit_price
-                    <> source.unit_price
-
-                OR target.item_total_amount
-                    <> source.item_total_amount
-
-                OR target.product_resolution
-                    <> source.product_resolution
+        (
+            write_df
+            .writeTo(
+                FACT_ORDER_ITEM
             )
-
-            THEN UPDATE SET
-
-                target.order_sk =
-                    source.order_sk,
-
-                target.order_id =
-                    source.order_id,
-
-                target.product_sk =
-                    source.product_sk,
-
-                target.product_id =
-                    source.product_id,
-
-                target.order_date_sk =
-                    source.order_date_sk,
-
-                target.order_timestamp =
-                    source.order_timestamp,
-
-                target.quantity =
-                    source.quantity,
-
-                target.unit_price =
-                    source.unit_price,
-
-                target.item_total_amount =
-                    source.item_total_amount,
-
-                target.product_resolution =
-                    source.product_resolution,
-
-                target.source_kafka_timestamp =
-                    source.source_kafka_timestamp,
-
-                target.silver_updated_at =
-                    current_timestamp()
-
-            WHEN NOT MATCHED THEN
-
-                INSERT (
-                    order_item_sk,
-                    order_item_id,
-                    order_sk,
-                    order_id,
-                    product_sk,
-                    product_id,
-                    order_date_sk,
-                    order_timestamp,
-                    quantity,
-                    unit_price,
-                    item_total_amount,
-                    product_resolution,
-                    source_kafka_timestamp,
-                    silver_created_at,
-                    silver_updated_at
+            .overwrite(
+                F.lit(
+                    True
                 )
-
-                VALUES (
-                    source.order_item_sk,
-                    source.order_item_id,
-                    source.order_sk,
-                    source.order_id,
-                    source.product_sk,
-                    source.product_id,
-                    source.order_date_sk,
-                    source.order_timestamp,
-                    source.quantity,
-                    source.unit_price,
-                    source.item_total_amount,
-                    source.product_resolution,
-                    source.source_kafka_timestamp,
-                    current_timestamp(),
-                    current_timestamp()
-                )
-            """
+            )
         )
 
         print(
-            "[PASS] FACT_ORDER_ITEM MERGE completed."
+            "[PASS] FACT_ORDER_ITEM "
+            "FULL OVERWRITE completed."
         )
 
         # -----------------------------------------------------
-        # Final Audit
+        # 7. Final Audit
         # -----------------------------------------------------
 
         fact_df = spark.table(
@@ -306,6 +326,20 @@ def main() -> None:
                 "order_item_id"
             )
             .distinct()
+            .count()
+        )
+
+        duplicate_target_sk = (
+            fact_df
+            .groupBy(
+                "order_item_sk"
+            )
+            .count()
+            .filter(
+                F.col(
+                    "count"
+                ) > 1
+            )
             .count()
         )
 
@@ -344,6 +378,11 @@ def main() -> None:
         )
 
         print(
+            f"Duplicate order_item_sk: "
+            f"{duplicate_target_sk:,}"
+        )
+
+        print(
             f"Null product_sk: "
             f"{null_products:,}"
         )
@@ -353,7 +392,8 @@ def main() -> None:
             f"{null_orders:,}"
         )
 
-        print("\nPRODUCT RESOLUTION")
+        print()
+        print("PRODUCT RESOLUTION")
 
         (
             fact_df
@@ -370,6 +410,10 @@ def main() -> None:
             fact_count
             ==
             distinct_items
+            and
+            duplicate_target_sk
+            ==
+            0
             and
             null_products
             ==
@@ -392,6 +436,10 @@ def main() -> None:
             print(
                 "[FAIL] FACT_ORDER_ITEM "
                 "AUDIT FAILED"
+            )
+
+            raise RuntimeError(
+                "FACT_ORDER_ITEM audit failed."
             )
 
         source_df.unpersist()

@@ -28,6 +28,10 @@ def main() -> None:
         print("BUILDING FACT_ORDER")
         print("=" * 100)
 
+        # -----------------------------------------------------
+        # 1. Read source data
+        # -----------------------------------------------------
+
         orders_df = read_bronze_topic(
             spark,
             TOPIC_ORDERS,
@@ -36,6 +40,10 @@ def main() -> None:
         dim_user_df = spark.table(
             DIM_USER
         )
+
+        # -----------------------------------------------------
+        # 2. Build canonical source
+        # -----------------------------------------------------
 
         source_df = (
             build_fact_order_source(
@@ -49,6 +57,29 @@ def main() -> None:
             source_df.count()
         )
 
+        source_distinct_orders = (
+            source_df
+            .select(
+                "order_id"
+            )
+            .distinct()
+            .count()
+        )
+
+        source_duplicate_order_sk = (
+            source_df
+            .groupBy(
+                "order_sk"
+            )
+            .count()
+            .filter(
+                F.col(
+                    "count"
+                ) > 1
+            )
+            .count()
+        )
+
         missing_user_sk = (
             source_df
             .filter(
@@ -59,18 +90,74 @@ def main() -> None:
             .count()
         )
 
+        unknown_user_count = (
+            source_df
+            .filter(
+                F.col(
+                    "user_sk"
+                ) == -1
+            )
+            .count()
+        )
+
+        # -----------------------------------------------------
+        # 3. Pre-write audit
+        # -----------------------------------------------------
+
+        print()
+        print("FACT_ORDER SOURCE AUDIT")
+        print("-" * 100)
+
         print(
-            f"Source orders: "
+            f"Source rows: "
             f"{source_count:,}"
         )
 
         print(
-            f"Missing user_sk: "
+            f"Distinct orders: "
+            f"{source_distinct_orders:,}"
+        )
+
+        print(
+            f"Duplicate order_sk: "
+            f"{source_duplicate_order_sk:,}"
+        )
+
+        print(
+            f"Null user_sk: "
             f"{missing_user_sk:,}"
         )
 
+        print(
+            f"Orders mapped to Unknown User: "
+            f"{unknown_user_count:,}"
+        )
+
+        if (
+            source_count
+            !=
+            source_distinct_orders
+            or
+            source_duplicate_order_sk
+            !=
+            0
+            or
+            missing_user_sk
+            !=
+            0
+        ):
+            raise RuntimeError(
+                "FACT_ORDER canonical source "
+                "audit failed."
+            )
+
+        print(
+            "[PASS] FACT_ORDER canonical "
+            "source audit completed."
+        )
+
         # -----------------------------------------------------
-        # Create Iceberg Fact Table
+        # 4. Create Iceberg Fact Table
         # -----------------------------------------------------
 
         spark.sql(
@@ -100,111 +187,69 @@ def main() -> None:
             """
         )
 
-        source_df.createOrReplaceTempView(
-            "staged_fact_order"
+        # -----------------------------------------------------
+        # 5. Prepare final rows
+        # -----------------------------------------------------
+
+        write_df = (
+            source_df
+            .withColumn(
+                "order_total",
+                F.col(
+                    "order_total"
+                ).cast(
+                    "decimal(10,2)"
+                ),
+            )
+            .withColumn(
+                "silver_created_at",
+                F.current_timestamp(),
+            )
+            .withColumn(
+                "silver_updated_at",
+                F.current_timestamp(),
+            )
+            .select(
+                "order_sk",
+                "order_id",
+                "user_sk",
+                "order_date_sk",
+                "order_timestamp",
+                "order_total",
+                "status",
+                "payment_method",
+                "source_kafka_timestamp",
+                "silver_created_at",
+                "silver_updated_at",
+            )
         )
 
         # -----------------------------------------------------
-        # Idempotent MERGE
+        # 6. Full Iceberg overwrite
+        #
+        # Replace the existing fact table with the complete
+        # canonical source to remove stale or duplicate rows.
         # -----------------------------------------------------
 
-        spark.sql(
-            f"""
-            MERGE INTO
-                {FACT_ORDER} AS target
-
-            USING
-                staged_fact_order AS source
-
-            ON
-                target.order_id =
-                source.order_id
-
-            WHEN MATCHED
-            AND (
-                target.user_sk
-                    <> source.user_sk
-
-                OR target.order_date_sk
-                    <> source.order_date_sk
-
-                OR target.order_timestamp
-                    <> source.order_timestamp
-
-                OR target.order_total
-                    <> source.order_total
-
-                OR target.status
-                    <> source.status
-
-                OR target.payment_method
-                    <> source.payment_method
+        (
+            write_df
+            .writeTo(
+                FACT_ORDER
             )
-
-            THEN UPDATE SET
-
-                target.user_sk =
-                    source.user_sk,
-
-                target.order_date_sk =
-                    source.order_date_sk,
-
-                target.order_timestamp =
-                    source.order_timestamp,
-
-                target.order_total =
-                    source.order_total,
-
-                target.status =
-                    source.status,
-
-                target.payment_method =
-                    source.payment_method,
-
-                target.source_kafka_timestamp =
-                    source.source_kafka_timestamp,
-
-                target.silver_updated_at =
-                    current_timestamp()
-
-            WHEN NOT MATCHED THEN
-
-                INSERT (
-                    order_sk,
-                    order_id,
-                    user_sk,
-                    order_date_sk,
-                    order_timestamp,
-                    order_total,
-                    status,
-                    payment_method,
-                    source_kafka_timestamp,
-                    silver_created_at,
-                    silver_updated_at
+            .overwrite(
+                F.lit(
+                    True
                 )
-
-                VALUES (
-                    source.order_sk,
-                    source.order_id,
-                    source.user_sk,
-                    source.order_date_sk,
-                    source.order_timestamp,
-                    source.order_total,
-                    source.status,
-                    source.payment_method,
-                    source.source_kafka_timestamp,
-                    current_timestamp(),
-                    current_timestamp()
-                )
-            """
+            )
         )
 
         print(
-            "[PASS] FACT_ORDER MERGE completed."
+            "[PASS] FACT_ORDER FULL OVERWRITE "
+            "completed."
         )
 
         # -----------------------------------------------------
-        # Audit
+        # 7. Final Audit
         # -----------------------------------------------------
 
         fact_df = spark.table(
@@ -234,6 +279,20 @@ def main() -> None:
             .count()
         )
 
+        duplicate_order_sk = (
+            fact_df
+            .groupBy(
+                "order_sk"
+            )
+            .count()
+            .filter(
+                F.col(
+                    "count"
+                ) > 1
+            )
+            .count()
+        )
+
         print()
         print("FACT_ORDER AUDIT")
         print("-" * 100)
@@ -249,29 +308,23 @@ def main() -> None:
         )
 
         print(
-            f"Null user_sk: "
-            f"{null_users:,}"
+            f"Duplicate order_sk: "
+            f"{duplicate_order_sk:,}"
         )
 
-        print("\nSAMPLE")
-
-        (
-            fact_df
-            .orderBy(
-                F.col(
-                    "order_timestamp"
-                ).desc()
-            )
-            .limit(10)
-            .show(
-                truncate=False
-            )
+        print(
+            f"Null user_sk: "
+            f"{null_users:,}"
         )
 
         if (
             fact_count
             ==
             distinct_orders
+            and
+            duplicate_order_sk
+            ==
+            0
             and
             null_users
             ==
@@ -288,6 +341,10 @@ def main() -> None:
             print()
             print(
                 "[FAIL] FACT_ORDER AUDIT FAILED"
+            )
+
+            raise RuntimeError(
+                "FACT_ORDER audit failed."
             )
 
         source_df.unpersist()

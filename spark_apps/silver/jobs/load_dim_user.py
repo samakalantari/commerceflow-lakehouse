@@ -26,7 +26,7 @@ def main() -> None:
         print("=" * 100)
 
         # -----------------------------------------------------
-        # Read Bronze
+        # 1. Read Bronze
         # -----------------------------------------------------
 
         bronze_df = read_bronze_topic(
@@ -44,7 +44,7 @@ def main() -> None:
         )
 
         # -----------------------------------------------------
-        # Clean + Validate
+        # 2. Clean + Validate
         # -----------------------------------------------------
 
         valid_df, invalid_df = (
@@ -53,13 +53,8 @@ def main() -> None:
             )
         )
 
-        valid_df = (
-            valid_df.cache()
-        )
-
-        invalid_df = (
-            invalid_df.cache()
-        )
+        valid_df = valid_df.cache()
+        invalid_df = invalid_df.cache()
 
         valid_count = (
             valid_df.count()
@@ -80,7 +75,7 @@ def main() -> None:
         )
 
         # -----------------------------------------------------
-        # Create DIM_USER Iceberg table
+        # 3. Create DIM_USER Iceberg table
         # -----------------------------------------------------
 
         spark.sql(
@@ -109,7 +104,100 @@ def main() -> None:
         )
 
         # -----------------------------------------------------
-        # Type 1 MERGE
+        # 4. Ensure Unknown User member exists
+        #
+        # Orders whose user cannot be resolved will use
+        # user_sk = -1 instead of NULL.
+        # -----------------------------------------------------
+
+        spark.sql(
+            f"""
+            MERGE INTO
+                {DIM_USER} AS target
+
+            USING (
+                SELECT
+                    CAST(-1 AS BIGINT)
+                        AS user_sk,
+
+                    '__UNKNOWN__'
+                        AS user_id,
+
+                    'Unknown'
+                        AS username,
+
+                    'unknown@unknown.local'
+                        AS email,
+
+                    CAST(
+                        '1970-01-01'
+                        AS DATE
+                    )
+                        AS signup_date,
+
+                    'Unknown'
+                        AS device,
+
+                    'Bronze'
+                        AS loyalty_tier,
+
+                    'Unknown'
+                        AS location,
+
+                    'UNKNOWN'
+                        AS record_hash,
+
+                    CAST(
+                        NULL
+                        AS TIMESTAMP
+                    )
+                        AS source_kafka_timestamp
+            ) AS source
+
+            ON
+                target.user_sk =
+                source.user_sk
+
+            WHEN NOT MATCHED THEN
+
+                INSERT (
+                    user_sk,
+                    user_id,
+                    username,
+                    email,
+                    signup_date,
+                    device,
+                    loyalty_tier,
+                    location,
+                    record_hash,
+                    source_kafka_timestamp,
+                    silver_created_at,
+                    silver_updated_at
+                )
+
+                VALUES (
+                    source.user_sk,
+                    source.user_id,
+                    source.username,
+                    source.email,
+                    source.signup_date,
+                    source.device,
+                    source.loyalty_tier,
+                    source.location,
+                    source.record_hash,
+                    source.source_kafka_timestamp,
+                    current_timestamp(),
+                    current_timestamp()
+                )
+            """
+        )
+
+        print(
+            "[PASS] Unknown DIM_USER member ensured."
+        )
+
+        # -----------------------------------------------------
+        # 5. Type 1 MERGE
         # -----------------------------------------------------
 
         valid_df.createOrReplaceTempView(
@@ -134,6 +222,7 @@ def main() -> None:
                 <> source.record_hash
 
             THEN UPDATE SET
+
                 target.username =
                     source.username,
 
@@ -162,6 +251,7 @@ def main() -> None:
                     current_timestamp()
 
             WHEN NOT MATCHED THEN
+
                 INSERT (
                     user_sk,
                     user_id,
@@ -199,7 +289,7 @@ def main() -> None:
         )
 
         # -----------------------------------------------------
-        # Quarantine
+        # 6. Quarantine invalid users
         # -----------------------------------------------------
 
         spark.sql(
@@ -232,28 +322,52 @@ def main() -> None:
             )
 
         # -----------------------------------------------------
-        # Final audit
+        # 7. Final Audit
         # -----------------------------------------------------
 
+        dim_df = spark.table(
+            DIM_USER
+        )
+
         silver_count = (
-            spark.table(
-                DIM_USER
+            dim_df.count()
+        )
+
+        unknown_count = (
+            dim_df
+            .filter(
+                "user_sk = -1"
             )
             .count()
         )
 
         print()
+        print("DIM_USER AUDIT")
+        print("-" * 100)
+
         print(
             f"DIM_USER records: "
             f"{silver_count:,}"
         )
 
+        print(
+            f"Unknown user records: "
+            f"{unknown_count:,}"
+        )
+
+        if unknown_count != 1:
+            raise RuntimeError(
+                "DIM_USER Unknown User audit failed."
+            )
+
+        print(
+            "[PASS] DIM_USER audit completed."
+        )
+
         print("\nDIM_USER SAMPLE")
 
         (
-            spark.table(
-                DIM_USER
-            )
+            dim_df
             .select(
                 "user_sk",
                 "user_id",
