@@ -11,7 +11,6 @@ from spark_apps.silver.config.iceberg import (
     build_iceberg_spark,
 )
 
-
 BRONZE_BASE_PATH = os.getenv(
     "BEHAVIORAL_BRONZE_PATH",
     "s3a://commerceflow-lakehouse/bronze/behavioral/events",
@@ -43,13 +42,9 @@ ALLOWED_DEVICES = [
 
 def parse_datetime(value: str) -> datetime:
     try:
-        return datetime.fromisoformat(
-            value.strip().replace("Z", "+00:00")
-        )
+        return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "Timestamp must look like '2026-07-12 09:00:00'"
-        ) from exc
+        raise argparse.ArgumentTypeError("Timestamp must look like '2026-07-12 09:00:00'") from exc
 
 
 def get_arguments() -> argparse.Namespace:
@@ -116,10 +111,7 @@ def build_partition_paths(
 
 
 def _blank(column_name: str):
-    return (
-        F.col(column_name).isNull()
-        | (F.trim(F.col(column_name).cast("string")) == "")
-    )
+    return F.col(column_name).isNull() | (F.trim(F.col(column_name).cast("string")) == "")
 
 
 def prepare_records(
@@ -144,13 +136,10 @@ def prepare_records(
     end_literal = F.lit(end_value).cast("timestamp")
 
     original_columns = bronze_df.columns
-    raw_record_json = F.to_json(
-        F.struct(*[F.col(name) for name in original_columns])
-    )
+    raw_record_json = F.to_json(F.struct(*[F.col(name) for name in original_columns]))
 
     prepared = (
-        bronze_df
-        .withColumn("_raw_record_json", raw_record_json)
+        bronze_df.withColumn("_raw_record_json", raw_record_json)
         .withColumn(
             "_parsed_application_timestamp",
             F.to_timestamp(F.col("timestamp")),
@@ -167,10 +156,12 @@ def prepare_records(
             F.when(
                 F.col("_parsed_application_timestamp").isNotNull(),
                 F.lit("timestamp"),
-            ).when(
+            )
+            .when(
                 F.col("kafka_timestamp").isNotNull(),
                 F.lit("kafka_timestamp"),
-            ).otherwise(F.lit(None).cast("string")),
+            )
+            .otherwise(F.lit(None).cast("string")),
         )
         .withColumn(
             "normalized_event_type",
@@ -192,10 +183,7 @@ def prepare_records(
             "partition_matches_event_date",
             (
                 F.col("event_timestamp").isNotNull()
-                & (
-                    F.to_date(F.col("event_timestamp"))
-                    == F.col("bronze_partition_date")
-                )
+                & (F.to_date(F.col("event_timestamp")) == F.col("bronze_partition_date"))
             ),
         )
         .withColumn(
@@ -270,13 +258,11 @@ def prepare_records(
             F.lit("unsupported_device"),
         ),
         F.when(
-            F.col("event_timestamp").isNotNull()
-            & ~F.col("partition_matches_event_date"),
+            F.col("event_timestamp").isNotNull() & ~F.col("partition_matches_event_date"),
             F.lit("event_date_partition_mismatch"),
         ),
         F.when(
-            F.col("event_data.quantity").isNotNull()
-            & (F.col("event_data.quantity") < 0),
+            F.col("event_data.quantity").isNotNull() & (F.col("event_data.quantity") < 0),
             F.lit("negative_quantity"),
         ),
         F.when(
@@ -285,26 +271,20 @@ def prepare_records(
             F.lit("negative_cart_total_items"),
         ),
         F.when(
-            F.col("event_data.cart_value").isNotNull()
-            & (F.col("event_data.cart_value") < 0),
+            F.col("event_data.cart_value").isNotNull() & (F.col("event_data.cart_value") < 0),
             F.lit("negative_cart_value"),
         ),
         F.when(
-            F.col("event_data.duration_sec").isNotNull()
-            & (F.col("event_data.duration_sec") < 0),
+            F.col("event_data.duration_sec").isNotNull() & (F.col("event_data.duration_sec") < 0),
             F.lit("negative_duration_sec"),
         ),
         F.when(
             F.col("event_data.http_status").isNotNull()
-            & (
-                (F.col("event_data.http_status") < 100)
-                | (F.col("event_data.http_status") > 599)
-            ),
+            & ((F.col("event_data.http_status") < 100) | (F.col("event_data.http_status") > 599)),
             F.lit("invalid_http_status"),
         ),
         F.when(
-            F.col("event_data.results_count").isNotNull()
-            & (F.col("event_data.results_count") < 0),
+            F.col("event_data.results_count").isNotNull() & (F.col("event_data.results_count") < 0),
             F.lit("negative_results_count"),
         ),
         F.when(
@@ -314,30 +294,23 @@ def prepare_records(
         ),
         F.when(
             F.col("event_data.rating").isNotNull()
-            & (
-                (F.col("event_data.rating") < 1)
-                | (F.col("event_data.rating") > 5)
-            ),
+            & ((F.col("event_data.rating") < 1) | (F.col("event_data.rating") > 5)),
             F.lit("rating_out_of_range"),
         ),
         F.when(
-            F.col("event_data.text_length").isNotNull()
-            & (F.col("event_data.text_length") < 0),
+            F.col("event_data.text_length").isNotNull() & (F.col("event_data.text_length") < 0),
             F.lit("negative_text_length"),
         ),
     )
 
     return (
-        prepared
-        .withColumn(
+        prepared.withColumn(
             "_validation_error_candidates",
             error_candidates,
         )
         .withColumn(
             "validation_errors",
-            F.expr(
-                "filter(_validation_error_candidates, x -> x is not null)"
-            ),
+            F.expr("filter(_validation_error_candidates, x -> x is not null)"),
         )
         .withColumn(
             "is_valid",
@@ -376,11 +349,7 @@ def split_records(
     end_value = end_ts.strftime("%Y-%m-%d %H:%M:%S")
 
     valid_df = (
-        prepared_df
-        .filter(
-            F.col("_in_requested_interval")
-            & F.col("is_valid")
-        )
+        prepared_df.filter(F.col("_in_requested_interval") & F.col("is_valid"))
         .select(
             "event_key",
             "user_id",
@@ -420,8 +389,7 @@ def split_records(
     )
 
     quarantine_df = (
-        prepared_df
-        .filter(
+        prepared_df.filter(
             ~F.col("is_valid")
             & (
                 F.col("_in_requested_interval")
@@ -433,15 +401,11 @@ def split_records(
             "quarantine_key",
             "event_key",
             "validation_errors",
-            F.size(F.col("validation_errors")).alias(
-                "validation_error_count"
-            ),
+            F.size(F.col("validation_errors")).alias("validation_error_count"),
             F.col("timestamp").cast("string").alias("raw_timestamp"),
             "event_timestamp",
             "event_timestamp_source",
-            F.col("kafka_timestamp").cast("timestamp").alias(
-                "kafka_timestamp"
-            ),
+            F.col("kafka_timestamp").cast("timestamp").alias("kafka_timestamp"),
             F.col("ingested_at").cast("timestamp").alias("ingested_at"),
             "bronze_partition_date",
             F.col("year").cast("int").alias("bronze_year"),
@@ -469,9 +433,7 @@ def split_records(
 
 
 def create_tables(spark) -> None:
-    spark.sql(
-        f"CREATE NAMESPACE IF NOT EXISTS {NAMESPACE}"
-    )
+    spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {NAMESPACE}")
 
     spark.sql(
         f"""
@@ -671,9 +633,7 @@ def merge_quarantine(
     spark,
     quarantine_df: DataFrame,
 ) -> Tuple[int, int, int]:
-    quarantine_df.createOrReplaceTempView(
-        "staged_quarantine_behavioral_events"
-    )
+    quarantine_df.createOrReplaceTempView("staged_quarantine_behavioral_events")
 
     source_count = quarantine_df.count()
 
@@ -802,7 +762,6 @@ def merge_quarantine(
     )
 
 
-
 def remove_quarantined_from_valid(
     spark,
     quarantine_source_count: int,
@@ -844,6 +803,7 @@ def remove_quarantined_from_valid(
 
     return rows_to_remove
 
+
 def show_validation_summary(
     quarantine_df: DataFrame,
 ) -> None:
@@ -853,10 +813,7 @@ def show_validation_summary(
     print("=" * 100)
 
     (
-        quarantine_df
-        .select(
-            F.explode("validation_errors").alias("validation_error")
-        )
+        quarantine_df.select(F.explode("validation_errors").alias("validation_error"))
         .groupBy("validation_error")
         .count()
         .orderBy(F.col("count").desc())
@@ -867,9 +824,7 @@ def show_validation_summary(
 def main() -> None:
     args = get_arguments()
 
-    spark = build_iceberg_spark(
-        "silver-load-fact-behavioral-event-with-quarantine"
-    )
+    spark = build_iceberg_spark("silver-load-fact-behavioral-event-with-quarantine")
 
     prepared_df = None
     valid_df = None
@@ -905,11 +860,7 @@ def main() -> None:
             print("[PASS] No Bronze partitions found.")
             return
 
-        bronze_df = (
-            spark.read
-            .option("basePath", BRONZE_BASE_PATH)
-            .parquet(*partition_paths)
-        )
+        bronze_df = spark.read.option("basePath", BRONZE_BASE_PATH).parquet(*partition_paths)
 
         prepared_df = prepare_records(
             bronze_df,
@@ -946,18 +897,9 @@ def main() -> None:
         print(f"Valid rows already in Silver: {valid_result[1]:,}")
         print(f"New valid rows inserted: {valid_result[2]:,}")
         print(f"Invalid source rows: {quarantine_result[0]:,}")
-        print(
-            "Invalid rows already in quarantine: "
-            f"{quarantine_result[1]:,}"
-        )
-        print(
-            "New quarantine rows inserted: "
-            f"{quarantine_result[2]:,}"
-        )
-        print(
-            "Historical invalid rows removed from valid table: "
-            f"{removed_from_valid:,}"
-        )
+        print(f"Invalid rows already in quarantine: {quarantine_result[1]:,}")
+        print(f"New quarantine rows inserted: {quarantine_result[2]:,}")
+        print(f"Historical invalid rows removed from valid table: {removed_from_valid:,}")
 
         if quarantine_result[0] > 0:
             show_validation_summary(quarantine_df)
@@ -975,9 +917,7 @@ def main() -> None:
         ).first()[0]
 
         if duplicate_count != 0:
-            raise RuntimeError(
-                f"Duplicate event keys detected: {duplicate_count}"
-            )
+            raise RuntimeError(f"Duplicate event keys detected: {duplicate_count}")
 
         print("[PASS] BEHAVIORAL SILVER LOAD COMPLETED")
 
