@@ -40,11 +40,13 @@ def main() -> None:
         # 2. Build canonical source
         # -----------------------------------------------------
 
-        source_df = build_fact_order_source(
+        source_df, invalid_df = build_fact_order_source(
             orders_df,
             dim_user_df,
-        ).cache()
-
+        )
+        
+        source_df = source_df.cache()
+        
         source_count = source_df.count()
 
         source_distinct_orders = source_df.select("order_id").distinct().count()
