@@ -209,6 +209,7 @@ def test_decode_removes_confluent_header(
     mock_from_avro.assert_called_once_with(
         payload_expression,
         ('{"type":"record","name":"Order","fields":[]}'),
+        {"mode": "PERMISSIVE"},
     )
 
     df.withColumn.assert_called_once_with(

@@ -51,7 +51,7 @@ TOPIC_PARTITION_CONFIG: Dict[
         ),
     },
     "transactional.returns_refunds": {
-        "timestamp_field": "ingested_at",
+        "timestamp_field": "return_timestamp",
         "columns": (
             "year",
             "month",

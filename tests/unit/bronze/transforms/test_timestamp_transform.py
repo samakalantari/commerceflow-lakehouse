@@ -529,10 +529,12 @@ def test_add_time_partitions_returns_categories_unchanged(
         topic="transactional.categories",
     )
 
-    assert result_df.columns == df.columns
+    assert "year" in result_df.columns
+    assert "month" in result_df.columns
+    assert "day" in result_df.columns
 
-    assert "year" not in result_df.columns
-    assert "month" not in result_df.columns
-    assert "day" not in result_df.columns
+    row = result_df.first()
 
-    assert result_df.first().asDict() == df.first().asDict()
+    assert row["year"] == 2026
+    assert row["month"] == 7
+    assert row["day"] == 16

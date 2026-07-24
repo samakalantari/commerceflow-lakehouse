@@ -9,7 +9,19 @@ from spark_apps.bronze.sinks.minio_sink import (
     write_bronze_stream,
 )
 
+
+BRONZE_BASE = "s3a://commerceflow-lakehouse/bronze"
 CHECKPOINT_BASE = "s3a://commerceflow-lakehouse/checkpoints/bronze"
+
+ORDERS_OUTPUT_PATH = (
+    "s3a://commerceflow-lakehouse/"
+    "bronze/transactional/orders_recovery"
+)
+
+ORDERS_CHECKPOINT_PATH = (
+    "s3a://commerceflow-lakehouse/"
+    "checkpoints/bronze/transactional/orders_recovery"
+)
 
 
 def _build_mock_dataframe(
@@ -31,17 +43,37 @@ def _build_mock_dataframe(
     return df, writer, query
 
 
-def test_topic_to_path_builds_expected_path(
+def test_regular_topic_to_path_builds_expected_path(
     monkeypatch,
 ):
     monkeypatch.setenv(
         "BRONZE_KAFKA_BASE_PATH",
-        "s3a://commerceflow-lakehouse/bronze",
+        BRONZE_BASE,
     )
 
-    result = _topic_to_path("transactional.orders")
+    result = _topic_to_path(
+        "transactional.products",
+    )
 
-    assert result == ("s3a://commerceflow-lakehouse/bronze/transactional/orders")
+    assert result == (
+        "s3a://commerceflow-lakehouse/"
+        "bronze/transactional/products"
+    )
+
+
+def test_orders_topic_uses_recovery_output_path(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "BRONZE_KAFKA_BASE_PATH",
+        BRONZE_BASE,
+    )
+
+    result = _topic_to_path(
+        "transactional.orders",
+    )
+
+    assert result == ORDERS_OUTPUT_PATH
 
 
 def test_topic_to_path_removes_trailing_slash(
@@ -49,12 +81,36 @@ def test_topic_to_path_removes_trailing_slash(
 ):
     monkeypatch.setenv(
         "BRONZE_KAFKA_BASE_PATH",
-        "s3a://commerceflow-lakehouse/bronze/",
+        f"{BRONZE_BASE}/",
     )
 
-    result = _topic_to_path("behavioral.events")
+    result = _topic_to_path(
+        "behavioral.events",
+    )
 
-    assert result == ("s3a://commerceflow-lakehouse/bronze/behavioral/events")
+    assert result == (
+        "s3a://commerceflow-lakehouse/"
+        "bronze/behavioral/events"
+    )
+
+
+def test_topic_to_path_uses_explicit_base_path(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "BRONZE_KAFKA_BASE_PATH",
+        "s3a://ignored-bucket/ignored",
+    )
+
+    result = _topic_to_path(
+        topic="transactional.products",
+        base_path="s3a://custom-bucket/custom-bronze",
+    )
+
+    assert result == (
+        "s3a://custom-bucket/"
+        "custom-bronze/transactional/products"
+    )
 
 
 def test_topic_to_path_raises_when_base_path_missing(
@@ -66,25 +122,42 @@ def test_topic_to_path_raises_when_base_path_missing(
     )
 
     with pytest.raises(KeyError):
-        _topic_to_path("transactional.orders")
+        _topic_to_path(
+            "transactional.products",
+        )
 
 
-def test_topic_to_checkpoint_builds_expected_path():
+def test_regular_topic_to_checkpoint_builds_expected_path():
+    result = _topic_to_checkpoint(
+        checkpoint_base=CHECKPOINT_BASE,
+        topic="transactional.products",
+    )
+
+    assert result == (
+        "s3a://commerceflow-lakehouse/"
+        "checkpoints/bronze/transactional/products"
+    )
+
+
+def test_orders_topic_uses_recovery_checkpoint_path():
     result = _topic_to_checkpoint(
         checkpoint_base=CHECKPOINT_BASE,
         topic="transactional.orders",
     )
 
-    assert result == ("s3a://commerceflow-lakehouse/checkpoints/bronze/transactional/orders")
+    assert result == ORDERS_CHECKPOINT_PATH
 
 
 def test_topic_to_checkpoint_removes_trailing_slash():
     result = _topic_to_checkpoint(
-        checkpoint_base=(f"{CHECKPOINT_BASE}/"),
+        checkpoint_base=f"{CHECKPOINT_BASE}/",
         topic="behavioral.events",
     )
 
-    assert result == ("s3a://commerceflow-lakehouse/checkpoints/bronze/behavioral/events")
+    assert result == (
+        "s3a://commerceflow-lakehouse/"
+        "checkpoints/bronze/behavioral/events"
+    )
 
 
 def test_validate_partition_columns_accepts_no_partitions():
@@ -97,6 +170,25 @@ def test_validate_partition_columns_accepts_no_partitions():
     _validate_partition_columns(
         df=df,
         partition_columns=(),
+    )
+
+
+def test_validate_partition_columns_accepts_existing_columns():
+    df = MagicMock()
+    df.columns = [
+        "order_id",
+        "year",
+        "month",
+        "day",
+    ]
+
+    _validate_partition_columns(
+        df=df,
+        partition_columns=(
+            "year",
+            "month",
+            "day",
+        ),
     )
 
 
@@ -132,7 +224,7 @@ def test_write_categories_without_partitioning(
 ):
     monkeypatch.setenv(
         "BRONZE_KAFKA_BASE_PATH",
-        "s3a://commerceflow-lakehouse/bronze",
+        BRONZE_BASE,
     )
 
     df, writer, query = _build_mock_dataframe(
@@ -140,7 +232,7 @@ def test_write_categories_without_partitioning(
             "category_id",
             "name",
             "parent_category_id",
-        ]
+        ],
     )
 
     result = write_bronze_stream(
@@ -149,48 +241,129 @@ def test_write_categories_without_partitioning(
         checkpoint_base=CHECKPOINT_BASE,
     )
 
-    writer.format.assert_called_once_with("parquet")
+    writer.format.assert_called_once_with(
+        "parquet",
+    )
 
     writer.option.assert_any_call(
         "path",
-        ("s3a://commerceflow-lakehouse/bronze/transactional/categories"),
+        (
+            "s3a://commerceflow-lakehouse/"
+            "bronze/transactional/categories"
+        ),
     )
 
     writer.option.assert_any_call(
         "checkpointLocation",
-        ("s3a://commerceflow-lakehouse/checkpoints/bronze/transactional/categories"),
+        (
+            "s3a://commerceflow-lakehouse/"
+            "checkpoints/bronze/"
+            "transactional/categories"
+        ),
+    )
+
+    writer.outputMode.assert_called_once_with(
+        "append",
     )
 
     writer.partitionBy.assert_not_called()
-
-    writer.outputMode.assert_called_once_with("append")
-
     writer.start.assert_called_once_with()
 
     assert result is query
 
 
-def test_write_orders_with_time_partitioning(
+def test_write_orders_uses_recovery_paths_and_time_partitioning(
     monkeypatch,
 ):
     monkeypatch.setenv(
         "BRONZE_KAFKA_BASE_PATH",
-        "s3a://commerceflow-lakehouse/bronze",
+        BRONZE_BASE,
     )
 
     df, writer, query = _build_mock_dataframe(
         columns=[
             "order_id",
+            "timestamp",
             "year",
             "month",
             "day",
-        ]
+        ],
     )
 
     result = write_bronze_stream(
         df=df,
         topic="transactional.orders",
         checkpoint_base=CHECKPOINT_BASE,
+    )
+
+    writer.format.assert_called_once_with(
+        "parquet",
+    )
+
+    writer.option.assert_any_call(
+        "path",
+        ORDERS_OUTPUT_PATH,
+    )
+
+    writer.option.assert_any_call(
+        "checkpointLocation",
+        ORDERS_CHECKPOINT_PATH,
+    )
+
+    writer.outputMode.assert_called_once_with(
+        "append",
+    )
+
+    writer.partitionBy.assert_called_once_with(
+        "year",
+        "month",
+        "day",
+    )
+
+    writer.start.assert_called_once_with()
+
+    assert result is query
+
+
+def test_write_regular_partitioned_topic_uses_standard_paths(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "BRONZE_KAFKA_BASE_PATH",
+        BRONZE_BASE,
+    )
+
+    df, writer, query = _build_mock_dataframe(
+        columns=[
+            "product_id",
+            "ingested_at",
+            "year",
+            "month",
+            "day",
+        ],
+    )
+
+    result = write_bronze_stream(
+        df=df,
+        topic="transactional.products",
+        checkpoint_base=CHECKPOINT_BASE,
+    )
+
+    writer.option.assert_any_call(
+        "path",
+        (
+            "s3a://commerceflow-lakehouse/"
+            "bronze/transactional/products"
+        ),
+    )
+
+    writer.option.assert_any_call(
+        "checkpointLocation",
+        (
+            "s3a://commerceflow-lakehouse/"
+            "checkpoints/bronze/"
+            "transactional/products"
+        ),
     )
 
     writer.partitionBy.assert_called_once_with(
@@ -209,14 +382,14 @@ def test_write_partitioned_topic_rejects_missing_columns(
 ):
     monkeypatch.setenv(
         "BRONZE_KAFKA_BASE_PATH",
-        "s3a://commerceflow-lakehouse/bronze",
+        BRONZE_BASE,
     )
 
-    df, _, _ = _build_mock_dataframe(
+    df, writer, _ = _build_mock_dataframe(
         columns=[
             "order_id",
             "year",
-        ]
+        ],
     )
 
     with pytest.raises(
@@ -229,16 +402,20 @@ def test_write_partitioned_topic_rejects_missing_columns(
             checkpoint_base=CHECKPOINT_BASE,
         )
 
+    writer.start.assert_not_called()
+
 
 def test_write_unknown_topic_raises(
     monkeypatch,
 ):
     monkeypatch.setenv(
         "BRONZE_KAFKA_BASE_PATH",
-        "s3a://commerceflow-lakehouse/bronze",
+        BRONZE_BASE,
     )
 
-    df, _, _ = _build_mock_dataframe(columns=[])
+    df, writer, _ = _build_mock_dataframe(
+        columns=[],
+    )
 
     with pytest.raises(
         ValueError,
@@ -249,3 +426,5 @@ def test_write_unknown_topic_raises(
             topic="transactional.unknown",
             checkpoint_base=CHECKPOINT_BASE,
         )
+
+    writer.start.assert_not_called()

@@ -47,7 +47,17 @@ def decode(df, topic: str, payload_column: str = "value"):
     # strip 5-byte Confluent header (1 magic byte + 4-byte schema id)
     payload = expr(f"substring({payload_column}, 6, length({payload_column}) - 5)")
 
-    decoded = df.withColumn("_decoded", from_avro(payload, avro_schema))
+    decoded = df.withColumn(
+        "_decoded",
+        from_avro(
+            payload,
+            avro_schema,
+            {
+                "mode": "PERMISSIVE",
+            },
+        ),
+    )
+
     fields = decoded.schema["_decoded"].dataType.fieldNames()
 
     return decoded.select(

@@ -10,21 +10,27 @@ def build_dim_date(
     end_date: str = "2030-12-31",
 ) -> DataFrame:
     """
-    Build a Kimball-style date dimension.
+    Build a date dimension with one row per calendar date.
 
-    Grain:
-        One row per calendar date.
+    Notes:
+        - date_sk uses YYYYMMDD format.
+        - day_of_week follows Spark numbering:
+          1 = Sunday and 7 = Saturday.
     """
 
     start = date.fromisoformat(start_date)
-
     end = date.fromisoformat(end_date)
+
+    if start > end:
+        raise ValueError(
+            "start_date must be before or equal to end_date"
+        )
 
     total_days = (end - start).days + 1
 
-    df = spark.range(total_days).select(
+    dates = spark.range(total_days).select(
         F.date_add(
-            F.lit(start_date),
+            F.to_date(F.lit(start_date)),
             F.col("id").cast("int"),
         ).alias("full_date")
     )

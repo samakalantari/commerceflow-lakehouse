@@ -2,10 +2,19 @@ import os
 from typing import Optional
 
 from pyspark.sql import DataFrame
+from pyspark.sql.streaming import StreamingQuery
 
 from spark_apps.bronze.config.topic_metadata import (
     get_partition_columns,
 )
+
+TOPIC_PATH_OVERRIDES = {
+    "transactional.orders": "transactional/orders_recovery",
+}
+
+TOPIC_CHECKPOINT_OVERRIDES = {
+    "transactional.orders": "transactional/orders_recovery",
+}
 
 
 def _validate_partition_columns(
@@ -74,17 +83,84 @@ def _topic_to_path(
 
     base = base_path.rstrip("/")
 
-    topic_path = topic.replace(".", "/")
-
-    return f"{base}/{topic_path}"
-
-
-def _topic_to_checkpoint(checkpoint_base: str, topic: str) -> str:
-    base = checkpoint_base.rstrip("/")
-
-    topic_path = topic.replace(
-        ".",
-        "/",
+    topic_path = TOPIC_PATH_OVERRIDES.get(
+        topic,
+        topic.replace(".", "/"),
     )
 
     return f"{base}/{topic_path}"
+
+
+def _topic_to_checkpoint(
+    checkpoint_base: str,
+    topic: str,
+) -> str:
+    base = checkpoint_base.rstrip("/")
+
+    topic_path = TOPIC_CHECKPOINT_OVERRIDES.get(
+        topic,
+        topic.replace(".", "/"),
+    )
+
+    return f"{base}/{topic_path}"
+
+def test_write_categories_with_ingestion_time_partitioning(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "BRONZE_KAFKA_BASE_PATH",
+        BRONZE_BASE,
+    )
+
+    df, writer, query = _build_mock_dataframe(
+        columns=[
+            "category_id",
+            "name",
+            "parent_category_id",
+            "ingested_at",
+            "year",
+            "month",
+            "day",
+        ],
+    )
+
+    result = write_bronze_stream(
+        df=df,
+        topic="transactional.categories",
+        checkpoint_base=CHECKPOINT_BASE,
+    )
+
+    writer.format.assert_called_once_with(
+        "parquet",
+    )
+
+    writer.option.assert_any_call(
+        "path",
+        (
+            "s3a://commerceflow-lakehouse/"
+            "bronze/transactional/categories"
+        ),
+    )
+
+    writer.option.assert_any_call(
+        "checkpointLocation",
+        (
+            "s3a://commerceflow-lakehouse/"
+            "checkpoints/bronze/"
+            "transactional/categories"
+        ),
+    )
+
+    writer.outputMode.assert_called_once_with(
+        "append",
+    )
+
+    writer.partitionBy.assert_called_once_with(
+        "year",
+        "month",
+        "day",
+    )
+
+    writer.start.assert_called_once_with()
+
+    assert result is query

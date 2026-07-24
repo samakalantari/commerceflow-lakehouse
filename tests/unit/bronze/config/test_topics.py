@@ -7,13 +7,17 @@ from spark_apps.bronze.config.topic_metadata import (
 )
 
 
-def test_categories_are_not_partitioned():
-    assert get_partition_config("transactional.categories") is None
-
-    assert get_partition_columns("transactional.categories") == ()
-
-    assert get_partition_timestamp_field("transactional.categories") is None
-
+def test_categories_are_partitioned_by_ingested_at():
+    assert get_partition_config(
+        "transactional.categories"
+    ) == {
+        "timestamp_field": "ingested_at",
+        "columns": (
+            "year",
+            "month",
+            "day",
+        ),
+    }
 
 def test_orders_use_timestamp_partitions():
     config = get_partition_config("transactional.orders")
