@@ -63,9 +63,12 @@ def build_dim_user_source(
         )
         .withColumn(
             "device",
-            F.coalesce(
-                F.trim(F.col("device")),
+            F.when(
+                F.col("device").isNull()
+                | (F.length(F.trim(F.col("device"))) == 0),
                 F.lit("Unknown"),
+            ).otherwise(
+                F.trim(F.col("device")),
             ),
         )
         .withColumn(
@@ -101,7 +104,7 @@ def build_dim_user_source(
                 F.lit("missing_email"),
             ),
             F.when(
-                F.col("email").isNotNull() & ~F.col("email").rlike(email_pattern),
+                F.col("email").isNotNull() & (F.length(F.col("email")) > 0) & ~F.col("email").rlike(email_pattern),
                 F.lit("invalid_email"),
             ),
             F.when(
@@ -152,18 +155,51 @@ def build_dim_user_source(
         F.col("kafka_timestamp").alias("source_kafka_timestamp"),
     )
 
-    invalid_df = (
+invalid_df = (
         df.filter(F.col("_dq_error_reason") != "")
+        .withColumn(
+            "_dq_quarantine_id",
+            F.sha2(
+                F.concat_ws(
+                    "||",
+                    F.lit("transactional.users"),
+                    F.coalesce(
+                        F.col("kafka_partition").cast("string"),
+                        F.lit("unknown_partition"),
+                    ),
+                    F.coalesce(
+                        F.col("kafka_offset").cast("string"),
+                        F.lit("unknown_offset"),
+                    ),
+                    F.coalesce(
+                        F.col("kafka_timestamp").cast("string"),
+                        F.lit("unknown_timestamp"),
+                    ),
+                    F.coalesce(
+                        F.col("user_id"),
+                        F.lit("unknown_user"),
+                    ),
+                ),
+                256,
+            ),
+        )
         .withColumn(
             "_dq_entity",
             F.lit("user"),
+        )
+        .withColumn(
+            "_dq_source_topic",
+            F.lit("transactional.users"),
+        )
+        .withColumn(
+            "_dq_status",
+            F.lit("open"),
         )
         .withColumn(
             "_dq_quarantined_at",
             F.current_timestamp(),
         )
     )
-
     return (
         valid_df,
         invalid_df,
