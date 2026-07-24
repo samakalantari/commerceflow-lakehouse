@@ -3,24 +3,17 @@ from spark_apps.silver.config.iceberg import (
     build_iceberg_spark,
 )
 
-
 SILVER_NAMESPACE = "silver"
 
 
 def main() -> None:
-    spark = build_iceberg_spark(
-        "bootstrap-silver-iceberg"
-    )
+    spark = build_iceberg_spark("bootstrap-silver-iceberg")
 
     catalog = ICEBERG_CATALOG_NAME
 
-    namespace = (
-        f"{catalog}.{SILVER_NAMESPACE}"
-    )
+    namespace = f"{catalog}.{SILVER_NAMESPACE}"
 
-    test_table = (
-        f"{namespace}.__iceberg_smoke_test"
-    )
+    test_table = f"{namespace}.__iceberg_smoke_test"
 
     try:
         print("=" * 100)
@@ -34,10 +27,7 @@ def main() -> None:
             """
         )
 
-        print(
-            f"[PASS] Namespace ready: "
-            f"{namespace}"
-        )
+        print(f"[PASS] Namespace ready: {namespace}")
 
         spark.sql(
             f"""
@@ -62,9 +52,7 @@ def main() -> None:
             """
         )
 
-        print(
-            "[PASS] Iceberg table created."
-        )
+        print("[PASS] Iceberg table created.")
 
         spark.sql(
             f"""
@@ -77,9 +65,7 @@ def main() -> None:
             """
         )
 
-        print(
-            "[PASS] INSERT completed."
-        )
+        print("[PASS] INSERT completed.")
 
         spark.sql(
             f"""
@@ -117,17 +103,11 @@ def main() -> None:
             """
         )
 
-        print(
-            "[PASS] MERGE completed."
-        )
+        print("[PASS] MERGE completed.")
 
         print("\nTABLE CONTENT")
 
-        spark.table(
-            test_table
-        ).show(
-            truncate=False
-        )
+        spark.table(test_table).show(truncate=False)
 
         print("\nSNAPSHOTS")
 
@@ -145,15 +125,11 @@ def main() -> None:
             ORDER BY
                 committed_at
             """
-        ).show(
-            truncate=False
-        )
+        ).show(truncate=False)
 
         print()
         print("=" * 100)
-        print(
-            "SILVER ICEBERG FOUNDATION PASSED"
-        )
+        print("SILVER ICEBERG FOUNDATION PASSED")
         print("=" * 100)
 
     finally:

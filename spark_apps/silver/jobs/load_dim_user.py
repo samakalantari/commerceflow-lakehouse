@@ -16,9 +16,7 @@ from spark_apps.silver.dimensions.dim_user import (
 
 
 def main() -> None:
-    spark = build_iceberg_spark(
-        "silver-load-dim-user"
-    )
+    spark = build_iceberg_spark("silver-load-dim-user")
 
     try:
         print("=" * 100)
@@ -34,45 +32,26 @@ def main() -> None:
             TOPIC_USERS,
         )
 
-        bronze_count = (
-            bronze_df.count()
-        )
+        bronze_count = bronze_df.count()
 
-        print(
-            f"Bronze users: "
-            f"{bronze_count:,}"
-        )
+        print(f"Bronze users: {bronze_count:,}")
 
         # -----------------------------------------------------
         # 2. Clean + Validate
         # -----------------------------------------------------
 
-        valid_df, invalid_df = (
-            build_dim_user_source(
-                bronze_df
-            )
-        )
+        valid_df, invalid_df = build_dim_user_source(bronze_df)
 
         valid_df = valid_df.cache()
         invalid_df = invalid_df.cache()
 
-        valid_count = (
-            valid_df.count()
-        )
+        valid_count = valid_df.count()
 
-        invalid_count = (
-            invalid_df.count()
-        )
+        invalid_count = invalid_df.count()
 
-        print(
-            f"Valid users: "
-            f"{valid_count:,}"
-        )
+        print(f"Valid users: {valid_count:,}")
 
-        print(
-            f"Invalid users: "
-            f"{invalid_count:,}"
-        )
+        print(f"Invalid users: {invalid_count:,}")
 
         # -----------------------------------------------------
         # 3. Create DIM_USER Iceberg table
@@ -192,17 +171,13 @@ def main() -> None:
             """
         )
 
-        print(
-            "[PASS] Unknown DIM_USER member ensured."
-        )
+        print("[PASS] Unknown DIM_USER member ensured.")
 
         # -----------------------------------------------------
         # 5. Type 1 MERGE
         # -----------------------------------------------------
 
-        valid_df.createOrReplaceTempView(
-            "staged_dim_user"
-        )
+        valid_df.createOrReplaceTempView("staged_dim_user")
 
         spark.sql(
             f"""
@@ -284,9 +259,7 @@ def main() -> None:
             """
         )
 
-        print(
-            "[PASS] DIM_USER MERGE completed."
-        )
+        print("[PASS] DIM_USER MERGE completed.")
 
         # -----------------------------------------------------
         # 6. Quarantine invalid users
@@ -301,13 +274,8 @@ def main() -> None:
 
         if invalid_count > 0:
             (
-                invalid_df
-                .writeTo(
-                    INVALID_USERS
-                )
-                .using(
-                    "iceberg"
-                )
+                invalid_df.writeTo(INVALID_USERS)
+                .using("iceberg")
                 .tableProperty(
                     "format-version",
                     "2",
@@ -315,60 +283,35 @@ def main() -> None:
                 .createOrReplace()
             )
 
-            print(
-                f"[WARN] {invalid_count:,} "
-                "invalid users written "
-                "to quarantine."
-            )
+            print(f"[WARN] {invalid_count:,} invalid users written to quarantine.")
 
         # -----------------------------------------------------
         # 7. Final Audit
         # -----------------------------------------------------
 
-        dim_df = spark.table(
-            DIM_USER
-        )
+        dim_df = spark.table(DIM_USER)
 
-        silver_count = (
-            dim_df.count()
-        )
+        silver_count = dim_df.count()
 
-        unknown_count = (
-            dim_df
-            .filter(
-                "user_sk = -1"
-            )
-            .count()
-        )
+        unknown_count = dim_df.filter("user_sk = -1").count()
 
         print()
         print("DIM_USER AUDIT")
         print("-" * 100)
 
-        print(
-            f"DIM_USER records: "
-            f"{silver_count:,}"
-        )
+        print(f"DIM_USER records: {silver_count:,}")
 
-        print(
-            f"Unknown user records: "
-            f"{unknown_count:,}"
-        )
+        print(f"Unknown user records: {unknown_count:,}")
 
         if unknown_count != 1:
-            raise RuntimeError(
-                "DIM_USER Unknown User audit failed."
-            )
+            raise RuntimeError("DIM_USER Unknown User audit failed.")
 
-        print(
-            "[PASS] DIM_USER audit completed."
-        )
+        print("[PASS] DIM_USER audit completed.")
 
         print("\nDIM_USER SAMPLE")
 
         (
-            dim_df
-            .select(
+            dim_df.select(
                 "user_sk",
                 "user_id",
                 "username",
@@ -377,19 +320,13 @@ def main() -> None:
                 "loyalty_tier",
                 "location",
             )
-            .limit(
-                5
-            )
-            .show(
-                truncate=False
-            )
+            .limit(5)
+            .show(truncate=False)
         )
 
         print()
         print("=" * 100)
-        print(
-            "DIM_USER LOAD COMPLETED"
-        )
+        print("DIM_USER LOAD COMPLETED")
         print("=" * 100)
 
         valid_df.unpersist()

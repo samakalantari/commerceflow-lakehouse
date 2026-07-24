@@ -1,12 +1,11 @@
 from datetime import timedelta
 
 import pendulum
-
-from airflow import DAG
 from airflow.providers.apache.spark.operators.spark_submit import (
     SparkSubmitOperator,
 )
 
+from airflow import DAG
 
 # ============================================================
 # General Configuration
@@ -32,11 +31,8 @@ SPARK_CONN_ID = "spark_standalone"
 
 SPARK_PACKAGES = ",".join(
     [
-        "org.apache.iceberg:"
-        "iceberg-spark-runtime-3.5_2.12:1.11.0",
-
-        "org.postgresql:"
-        "postgresql:42.7.13",
+        "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.11.0",
+        "org.postgresql:postgresql:42.7.13",
     ]
 )
 
@@ -46,23 +42,18 @@ SPARK_PACKAGES = ",".join(
 # ============================================================
 
 COMMON_SPARK_CONF = {
-
     # --------------------------------------------------------
     # Driver Networking
     #
     # Spark driver runs inside airflow-scheduler container.
     # Spark workers must be able to connect back to it.
     # --------------------------------------------------------
-
     "spark.driver.host": "airflow-scheduler",
     "spark.driver.bindAddress": "0.0.0.0",
-
     # --------------------------------------------------------
     # Ivy / Maven Package Cache
     # --------------------------------------------------------
-
     "spark.jars.ivy": "/tmp/.ivy2",
-
     # --------------------------------------------------------
     # Python Driver
     #
@@ -73,23 +64,15 @@ COMMON_SPARK_CONF = {
     #
     # here.
     # --------------------------------------------------------
-
     "spark.pyspark.driver.python": "python3",
-
     # --------------------------------------------------------
     # Spark Executor Environment
     #
     # Executors run inside Bitnami Spark workers.
     # --------------------------------------------------------
-
-    "spark.executorEnv.PYSPARK_PYTHON":
-        "/opt/bitnami/python/bin/python3",
-
-    "spark.executorEnv.PYTHONPATH":
-        "/opt/project",
-
-    "spark.executorEnv.PYTHONDONTWRITEBYTECODE":
-        "1",
+    "spark.executorEnv.PYSPARK_PYTHON": "/opt/bitnami/python/bin/python3",
+    "spark.executorEnv.PYTHONPATH": "/opt/project",
+    "spark.executorEnv.PYTHONDONTWRITEBYTECODE": "1",
     "spark.cores.max": "2",
     "spark.executor.cores": "2",
 }
@@ -129,6 +112,7 @@ DEFAULT_ARGS = {
 # Helper Function
 # ============================================================
 
+
 def silver_spark_task(
     task_id: str,
     application: str,
@@ -140,19 +124,12 @@ def silver_spark_task(
 
     return SparkSubmitOperator(
         task_id=task_id,
-
         conn_id=SPARK_CONN_ID,
-
         application=application,
-
         packages=SPARK_PACKAGES,
-
         conf=COMMON_SPARK_CONF,
-
         env_vars=COMMON_ENV_VARS,
-
         deploy_mode="client",
-
         verbose=False,
     )
 
@@ -163,30 +140,22 @@ def silver_spark_task(
 
 with DAG(
     dag_id=DAG_ID,
-
     description=(
-        "Transactional Bronze-to-Silver ETL pipeline "
-        "using Spark, MinIO and Apache Iceberg"
+        "Transactional Bronze-to-Silver ETL pipeline using Spark, MinIO and Apache Iceberg"
     ),
-
     default_args=DEFAULT_ARGS,
-
     start_date=pendulum.datetime(
         2026,
         7,
         17,
         tz="UTC",
     ),
-
     # Run once per day
     # schedule="@daily",
     schedule="0 */6 * * *",
-
     catchup=False,
-
     # Prevent two Silver pipelines from writing concurrently
     max_active_runs=1,
-
     tags=[
         "silver",
         "transactional",
@@ -195,7 +164,6 @@ with DAG(
         "iceberg",
     ],
 ) as dag:
-
     # ========================================================
     # 1. Bootstrap Silver / Iceberg
     #
@@ -207,14 +175,8 @@ with DAG(
 
     bootstrap_silver = silver_spark_task(
         task_id="bootstrap_silver",
-
-        application=(
-            "/opt/project/"
-            "spark_apps/silver/jobs/"
-            "bootstrap_silver.py"
-        ),
+        application=("/opt/project/spark_apps/silver/jobs/bootstrap_silver.py"),
     )
-
 
     # ========================================================
     # 2. Dimension: Date
@@ -225,14 +187,8 @@ with DAG(
 
     load_dim_date = silver_spark_task(
         task_id="load_dim_date",
-
-        application=(
-            "/opt/project/"
-            "spark_apps/silver/jobs/"
-            "load_dim_date.py"
-        ),
+        application=("/opt/project/spark_apps/silver/jobs/load_dim_date.py"),
     )
-
 
     # ========================================================
     # 3. Dimension: User
@@ -247,14 +203,8 @@ with DAG(
 
     load_dim_user = silver_spark_task(
         task_id="load_dim_user",
-
-        application=(
-            "/opt/project/"
-            "spark_apps/silver/jobs/"
-            "load_dim_user.py"
-        ),
+        application=("/opt/project/spark_apps/silver/jobs/load_dim_user.py"),
     )
-
 
     # ========================================================
     # 4. Dimension: Product - SCD Type 2
@@ -268,14 +218,8 @@ with DAG(
 
     load_dim_product = silver_spark_task(
         task_id="load_dim_product",
-
-        application=(
-            "/opt/project/"
-            "spark_apps/silver/jobs/"
-            "load_dim_product.py"
-        ),
+        application=("/opt/project/spark_apps/silver/jobs/load_dim_product.py"),
     )
-
 
     # ========================================================
     # 5. Fact: Order
@@ -289,14 +233,8 @@ with DAG(
 
     load_fact_order = silver_spark_task(
         task_id="load_fact_order",
-
-        application=(
-            "/opt/project/"
-            "spark_apps/silver/jobs/"
-            "load_fact_order.py"
-        ),
+        application=("/opt/project/spark_apps/silver/jobs/load_fact_order.py"),
     )
-
 
     # ========================================================
     # 6. Fact: Order Item
@@ -314,14 +252,8 @@ with DAG(
 
     load_fact_order_item = silver_spark_task(
         task_id="load_fact_order_item",
-
-        application=(
-            "/opt/project/"
-            "spark_apps/silver/jobs/"
-            "load_fact_order_item.py"
-        ),
+        application=("/opt/project/spark_apps/silver/jobs/load_fact_order_item.py"),
     )
-
 
     # ========================================================
     # 7. Silver End-to-End Audit
@@ -338,14 +270,8 @@ with DAG(
 
     audit_silver = silver_spark_task(
         task_id="audit_silver",
-
-        application=(
-            "/opt/project/"
-            "spark_apps/silver/jobs/"
-            "audit_silver.py"
-        ),
+        application=("/opt/project/spark_apps/silver/jobs/audit_silver.py"),
     )
-
 
     # ========================================================
     # Pipeline Dependency Graph

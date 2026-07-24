@@ -7,14 +7,10 @@ def get_bronze_base_path() -> str:
     """
     Return the Bronze Kafka base path stored in MinIO.
     """
-    base_path = os.getenv(
-        "BRONZE_KAFKA_BASE_PATH"
-    )
+    base_path = os.getenv("BRONZE_KAFKA_BASE_PATH")
 
     if not base_path:
-        raise RuntimeError(
-            "BRONZE_KAFKA_BASE_PATH is not set."
-        )
+        raise RuntimeError("BRONZE_KAFKA_BASE_PATH is not set.")
 
     return base_path.rstrip("/")
 
@@ -38,9 +34,7 @@ def bronze_topic_path(
         "/",
     )
 
-    return (
-        f"{base_path}/{topic_path}"
-    )
+    return f"{base_path}/{topic_path}"
 
 
 def read_bronze_topic(
@@ -52,13 +46,7 @@ def read_bronze_topic(
     """
     path = bronze_topic_path(topic)
 
-    return (
-        spark.read
-        .option(
-            "basePath",
-            path,
-        )
-        .parquet(
-            f"{path}/year=*/month=*/day=*"
-        )
-    )
+    return spark.read.option(
+        "basePath",
+        path,
+    ).parquet(f"{path}/year=*/month=*/day=*")

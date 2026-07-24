@@ -18,8 +18,7 @@ def read_kafka_stream(
         raise ValueError("topic must not be empty")
 
     reader = (
-        spark.readStream
-        .format("kafka")
+        spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", bootstrap_servers)
         .option("subscribe", topic)
         .option("startingOffsets", starting_offsets)
@@ -32,15 +31,12 @@ def read_kafka_stream(
             str(max_offsets_per_trigger),
         )
 
-    return (
-        reader.load()
-        .select(
-            col("key").cast("string").alias("kafka_key"),
-            col("value").alias("raw_value"),
-            col("topic").alias("kafka_topic"),
-            col("partition").alias("kafka_partition"),
-            col("offset").alias("kafka_offset"),
-            col("timestamp").alias("kafka_timestamp"),
-            current_timestamp().alias("ingested_at"),
-        )
+    return reader.load().select(
+        col("key").cast("string").alias("kafka_key"),
+        col("value").alias("raw_value"),
+        col("topic").alias("kafka_topic"),
+        col("partition").alias("kafka_partition"),
+        col("offset").alias("kafka_offset"),
+        col("timestamp").alias("kafka_timestamp"),
+        current_timestamp().alias("ingested_at"),
     )

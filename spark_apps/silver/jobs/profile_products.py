@@ -8,8 +8,8 @@ from spark_apps.silver.config.iceberg import (
 )
 from spark_apps.silver.config.tables import (
     TOPIC_CATEGORIES,
-    TOPIC_PRODUCTS,
     TOPIC_PRODUCT_PRICE_HISTORY,
+    TOPIC_PRODUCTS,
 )
 
 
@@ -29,9 +29,7 @@ def profile_topic(
 
     count = df.count()
 
-    print(
-        f"Total records: {count:,}"
-    )
+    print(f"Total records: {count:,}")
 
     print("\nSCHEMA")
     print("-" * 110)
@@ -44,7 +42,8 @@ def profile_topic(
     business_columns = [
         column
         for column in df.columns
-        if column not in {
+        if column
+        not in {
             "kafka_key",
             "kafka_topic",
             "kafka_partition",
@@ -66,28 +65,17 @@ def profile_topic(
                             F.col(column).isNull(),
                             1,
                         ).otherwise(0)
-                    ).alias(
-                        column
-                    )
-                    for column
-                    in business_columns
+                    ).alias(column)
+                    for column in business_columns
                 ]
-            )
-            .show(
-                truncate=False
-            )
+            ).show(truncate=False)
         )
 
     print("\nSAMPLE")
     print("-" * 110)
 
     (
-        df
-        .orderBy(
-            F.col(
-                "kafka_timestamp"
-            ).desc()
-        )
+        df.orderBy(F.col("kafka_timestamp").desc())
         .limit(5)
         .show(
             truncate=False,
@@ -100,42 +88,19 @@ def profile_topic(
     # ---------------------------------------------------------
 
     if "product_id" in df.columns:
+        distinct_products = df.select("product_id").distinct().count()
 
-        distinct_products = (
-            df
-            .select(
-                "product_id"
-            )
-            .distinct()
-            .count()
-        )
+        print(f"\nDistinct product_id: {distinct_products:,}")
 
-        print(
-            f"\nDistinct product_id: "
-            f"{distinct_products:,}"
-        )
+        print(f"Repeated product records: {count - distinct_products:,}")
 
-        print(
-            f"Repeated product records: "
-            f"{count - distinct_products:,}"
-        )
-
-        print(
-            "\nPRODUCTS WITH MULTIPLE RECORDS"
-        )
+        print("\nPRODUCTS WITH MULTIPLE RECORDS")
 
         (
-            df
-            .groupBy(
-                "product_id"
-            )
+            df.groupBy("product_id")
             .count()
-            .filter(
-                F.col("count") > 1
-            )
-            .orderBy(
-                F.col("count").desc()
-            )
+            .filter(F.col("count") > 1)
+            .orderBy(F.col("count").desc())
             .show(
                 20,
                 truncate=False,
@@ -147,20 +112,9 @@ def profile_topic(
     # ---------------------------------------------------------
 
     if "category_id" in df.columns:
+        distinct_categories = df.select("category_id").distinct().count()
 
-        distinct_categories = (
-            df
-            .select(
-                "category_id"
-            )
-            .distinct()
-            .count()
-        )
-
-        print(
-            f"\nDistinct category_id: "
-            f"{distinct_categories:,}"
-        )
+        print(f"\nDistinct category_id: {distinct_categories:,}")
 
     # ---------------------------------------------------------
     # Price profiling
@@ -178,50 +132,19 @@ def profile_topic(
     ]
 
     for price_column in price_columns:
-
-        print(
-            f"\nPRICE PROFILE: "
-            f"{price_column}"
-        )
+        print(f"\nPRICE PROFILE: {price_column}")
 
         (
-            df
-            .select(
-                F.min(
-                    price_column
-                ).alias(
-                    "min"
-                ),
-                F.max(
-                    price_column
-                ).alias(
-                    "max"
-                ),
-                F.avg(
-                    price_column
-                ).alias(
-                    "avg"
-                ),
-            )
-            .show(
-                truncate=False
-            )
+            df.select(
+                F.min(price_column).alias("min"),
+                F.max(price_column).alias("max"),
+                F.avg(price_column).alias("avg"),
+            ).show(truncate=False)
         )
 
-        invalid_price_count = (
-            df
-            .filter(
-                F.col(
-                    price_column
-                ) < 0
-            )
-            .count()
-        )
+        invalid_price_count = df.filter(F.col(price_column) < 0).count()
 
-        print(
-            f"Negative {price_column}: "
-            f"{invalid_price_count:,}"
-        )
+        print(f"Negative {price_column}: {invalid_price_count:,}")
 
     # ---------------------------------------------------------
     # Timestamp ranges
@@ -237,18 +160,12 @@ def profile_topic(
         )
     ]
 
-    print(
-        "\nDATE / TIMESTAMP COLUMNS"
-    )
-    print(
-        timestamp_columns
-    )
+    print("\nDATE / TIMESTAMP COLUMNS")
+    print(timestamp_columns)
 
 
 def main() -> None:
-    spark = build_iceberg_spark(
-        "profile-silver-products"
-    )
+    spark = build_iceberg_spark("profile-silver-products")
 
     try:
         topics = (
@@ -265,9 +182,7 @@ def main() -> None:
 
         print("\n")
         print("=" * 110)
-        print(
-            "[PASS] PRODUCT SOURCES PROFILING COMPLETED"
-        )
+        print("[PASS] PRODUCT SOURCES PROFILING COMPLETED")
         print("=" * 110)
 
     finally:

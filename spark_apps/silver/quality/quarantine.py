@@ -9,16 +9,12 @@ def prepare_quarantine_records(
     """
     Enrich invalid records with quarantine metadata.
     """
-    return (
-        df
-        .withColumn(
-            "_dq_entity",
-            F.lit(entity_name),
-        )
-        .withColumn(
-            "_dq_quarantined_at",
-            F.current_timestamp(),
-        )
+    return df.withColumn(
+        "_dq_entity",
+        F.lit(entity_name),
+    ).withColumn(
+        "_dq_quarantined_at",
+        F.current_timestamp(),
     )
 
 
@@ -33,12 +29,4 @@ def write_quarantine(
     if df.limit(1).count() == 0:
         return
 
-    (
-        df.writeTo(
-            table_name
-        )
-        .using(
-            "iceberg"
-        )
-        .createOrReplace()
-    )
+    (df.writeTo(table_name).using("iceberg").createOrReplace())

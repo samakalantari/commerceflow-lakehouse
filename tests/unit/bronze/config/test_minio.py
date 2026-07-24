@@ -95,10 +95,7 @@ def test_configure_minio_storage_sets_hadoop_configuration(
         ),
     ]
 
-    actual_calls = [
-        call.args
-        for call in hadoop_conf.set.call_args_list
-    ]
+    actual_calls = [call.args for call in hadoop_conf.set.call_args_list]
 
     for expected_call in expected_calls:
         assert expected_call in actual_calls

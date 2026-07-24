@@ -16,61 +16,38 @@ def build_dim_date(
         One row per calendar date.
     """
 
-    start = date.fromisoformat(
-        start_date
-    )
+    start = date.fromisoformat(start_date)
 
-    end = date.fromisoformat(
-        end_date
-    )
+    end = date.fromisoformat(end_date)
 
-    total_days = (
-        end - start
-    ).days + 1
+    total_days = (end - start).days + 1
 
-    df = (
-        spark
-        .range(
-            total_days
-        )
-        .select(
-            F.date_add(
-                F.lit(start_date),
-                F.col("id").cast("int"),
-            ).alias(
-                "full_date"
-            )
-        )
+    df = spark.range(total_days).select(
+        F.date_add(
+            F.lit(start_date),
+            F.col("id").cast("int"),
+        ).alias("full_date")
     )
 
     return (
-        df
-        .withColumn(
+        df.withColumn(
             "date_sk",
             F.date_format(
                 "full_date",
                 "yyyyMMdd",
-            ).cast(
-                "int"
-            ),
+            ).cast("int"),
         )
         .withColumn(
             "year",
-            F.year(
-                "full_date"
-            ),
+            F.year("full_date"),
         )
         .withColumn(
             "quarter",
-            F.quarter(
-                "full_date"
-            ),
+            F.quarter("full_date"),
         )
         .withColumn(
             "month",
-            F.month(
-                "full_date"
-            ),
+            F.month("full_date"),
         )
         .withColumn(
             "month_name",
@@ -81,21 +58,15 @@ def build_dim_date(
         )
         .withColumn(
             "week_of_year",
-            F.weekofyear(
-                "full_date"
-            ),
+            F.weekofyear("full_date"),
         )
         .withColumn(
             "day",
-            F.dayofmonth(
-                "full_date"
-            ),
+            F.dayofmonth("full_date"),
         )
         .withColumn(
             "day_of_week",
-            F.dayofweek(
-                "full_date"
-            ),
+            F.dayofweek("full_date"),
         )
         .withColumn(
             "day_name",
@@ -106,9 +77,7 @@ def build_dim_date(
         )
         .withColumn(
             "is_weekend",
-            F.dayofweek(
-                "full_date"
-            ).isin(
+            F.dayofweek("full_date").isin(
                 1,
                 7,
             ),

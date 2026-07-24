@@ -9,12 +9,10 @@ BUSINESS_TOPICS = (
     "behavioral.events",
 )
 
+
 def validate_topic(topic: str) -> str:
     if topic not in BUSINESS_TOPICS:
         allowed = ", ".join(BUSINESS_TOPICS)
-        raise ValueError(
-            f"Unsupported Kafka topic: {topic}. "
-            f"Allowed topics: {allowed}"
-        )
+        raise ValueError(f"Unsupported Kafka topic: {topic}. Allowed topics: {allowed}")
 
     return topic

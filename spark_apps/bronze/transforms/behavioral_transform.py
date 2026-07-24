@@ -1,7 +1,6 @@
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, struct
 
-
 BEHAVIORAL_TOPIC = "behavioral.events"
 
 COMMON_EVENT_COLUMNS = (
@@ -48,45 +47,26 @@ def group_behavioral_event_fields(
     if topic != BEHAVIORAL_TOPIC:
         return df
 
-    missing_common_columns = [
-        column
-        for column in COMMON_EVENT_COLUMNS
-        if column not in df.columns
-    ]
+    missing_common_columns = [column for column in COMMON_EVENT_COLUMNS if column not in df.columns]
 
     if missing_common_columns:
         missing = ", ".join(missing_common_columns)
 
-        raise ValueError(
-            "Missing required behavioral event columns: "
-            f"{missing}"
-        )
+        raise ValueError(f"Missing required behavioral event columns: {missing}")
 
-    existing_event_data_columns = [
-        column
-        for column in EVENT_DATA_COLUMNS
-        if column in df.columns
-    ]
+    existing_event_data_columns = [column for column in EVENT_DATA_COLUMNS if column in df.columns]
 
     if not existing_event_data_columns:
-        raise ValueError(
-            "No behavioral event-specific columns were found."
-        )
+        raise ValueError("No behavioral event-specific columns were found.")
 
     metadata_columns = [
-        column
-        for column in df.columns
-        if column.startswith("kafka_")
-        or column == "ingested_at"
+        column for column in df.columns if column.startswith("kafka_") or column == "ingested_at"
     ]
 
     return df.select(
         *[col(column) for column in metadata_columns],
         *[col(column) for column in COMMON_EVENT_COLUMNS],
-        struct(
-            *[
-                col(column).alias(column)
-                for column in existing_event_data_columns
-            ]
-        ).alias("event_data"),
+        struct(*[col(column).alias(column) for column in existing_event_data_columns]).alias(
+            "event_data"
+        ),
     )

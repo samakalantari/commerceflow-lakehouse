@@ -110,50 +110,31 @@ def bootstrap_gold() -> None:
         """
     )
 
-    engine = (
-        execute_clickhouse(
-            f"""
+    engine = execute_clickhouse(
+        f"""
             SELECT engine
             FROM system.databases
             WHERE name =
                 '{CLICKHOUSE_DATABASE}'
             FORMAT TSVRaw
             """
-        )
-        .strip()
-    )
+    ).strip()
 
     if engine != "Atomic":
-        raise RuntimeError(
-            f"Gold database engine is "
-            f"'{engine}', expected 'Atomic'."
-        )
+        raise RuntimeError(f"Gold database engine is '{engine}', expected 'Atomic'.")
 
-    execute_clickhouse(
-        create_table_sql(
-            TRANSACTIONAL_OBT
-        )
-    )
+    execute_clickhouse(create_table_sql(TRANSACTIONAL_OBT))
 
-    execute_clickhouse(
-        create_table_sql(
-            TRANSACTIONAL_OBT_STAGING
-        )
-    )
+    execute_clickhouse(create_table_sql(TRANSACTIONAL_OBT_STAGING))
 
 
 def main() -> None:
 
-    spark = build_iceberg_spark(
-        "gold-load-transactional-obt"
-    )
+    spark = build_iceberg_spark("gold-load-transactional-obt")
 
     try:
-
         print("=" * 100)
-        print(
-            "GOLD TRANSACTIONAL OBT LOAD"
-        )
+        print("GOLD TRANSACTIONAL OBT LOAD")
         print("=" * 100)
 
         # ====================================================
@@ -162,9 +143,7 @@ def main() -> None:
 
         bootstrap_gold()
 
-        print(
-            "[PASS] Gold ClickHouse tables ensured."
-        )
+        print("[PASS] Gold ClickHouse tables ensured.")
 
         # ====================================================
         # 2. Clear only staging
@@ -179,117 +158,59 @@ def main() -> None:
             """
         )
 
-        print(
-            "[PASS] Gold staging table cleared."
-        )
+        print("[PASS] Gold staging table cleared.")
 
         # ====================================================
         # 3. Read Silver Iceberg tables
         # ====================================================
 
-        dim_date = spark.table(
-            DIM_DATE
-        )
+        dim_date = spark.table(DIM_DATE)
 
-        dim_user = spark.table(
-            DIM_USER
-        )
+        dim_user = spark.table(DIM_USER)
 
-        dim_product = spark.table(
-            DIM_PRODUCT
-        )
+        dim_product = spark.table(DIM_PRODUCT)
 
-        fact_order = spark.table(
-            FACT_ORDER
-        )
+        fact_order = spark.table(FACT_ORDER)
 
-        fact_order_item = spark.table(
-            FACT_ORDER_ITEM
-        )
+        fact_order_item = spark.table(FACT_ORDER_ITEM)
 
         # ====================================================
         # 4. Build OBT
         # ====================================================
 
-        obt_df = (
-            build_transactional_obt(
-                fact_order_item,
-                fact_order,
-                dim_user,
-                dim_product,
-                dim_date,
-            )
-            .cache()
-        )
+        obt_df = build_transactional_obt(
+            fact_order_item,
+            fact_order,
+            dim_user,
+            dim_product,
+            dim_date,
+        ).cache()
 
-        source_count = (
-            obt_df.count()
-        )
+        source_count = obt_df.count()
 
-        distinct_items = (
-            obt_df
-            .select(
-                "order_item_sk"
-            )
-            .distinct()
-            .count()
-        )
+        distinct_items = obt_df.select("order_item_sk").distinct().count()
 
-        duplicate_items = (
-            obt_df
-            .groupBy(
-                "order_item_sk"
-            )
-            .count()
-            .filter(
-                F.col(
-                    "count"
-                ) > 1
-            )
-            .count()
-        )
+        duplicate_items = obt_df.groupBy("order_item_sk").count().filter(F.col("count") > 1).count()
 
         print()
         print("GOLD SOURCE AUDIT")
         print("-" * 100)
 
-        print(
-            f"Rows: "
-            f"{source_count:,}"
-        )
+        print(f"Rows: {source_count:,}")
 
-        print(
-            f"Distinct order items: "
-            f"{distinct_items:,}"
-        )
+        print(f"Distinct order items: {distinct_items:,}")
 
-        print(
-            f"Duplicate order_item_sk: "
-            f"{duplicate_items:,}"
-        )
+        print(f"Duplicate order_item_sk: {duplicate_items:,}")
 
-        if (
-            source_count
-            !=
-            distinct_items
-            or
-            duplicate_items
-            !=
-            0
-        ):
-            raise RuntimeError(
-                "Gold OBT source audit failed."
-            )
+        if source_count != distinct_items or duplicate_items != 0:
+            raise RuntimeError("Gold OBT source audit failed.")
 
         # ====================================================
         # 5. Write into ClickHouse Staging
         # ====================================================
 
         print()
-        print(
-            "Writing Gold OBT to "
-            "ClickHouse staging..."
-        )
+        print("Writing Gold OBT to ClickHouse staging...")
 
         write_clickhouse(
             obt_df,
@@ -300,40 +221,21 @@ def main() -> None:
         # 6. Validate Staging
         # ====================================================
 
-        staging_df = (
-            read_clickhouse_table(
-                spark,
-                TRANSACTIONAL_OBT_STAGING,
-            )
+        staging_df = read_clickhouse_table(
+            spark,
+            TRANSACTIONAL_OBT_STAGING,
         )
 
-        staging_count = (
-            staging_df.count()
-        )
+        staging_count = staging_df.count()
 
-        print(
-            f"Spark OBT rows: "
-            f"{source_count:,}"
-        )
+        print(f"Spark OBT rows: {source_count:,}")
 
-        print(
-            f"ClickHouse staging rows: "
-            f"{staging_count:,}"
-        )
+        print(f"ClickHouse staging rows: {staging_count:,}")
 
-        if (
-            staging_count
-            !=
-            source_count
-        ):
-            raise RuntimeError(
-                "Gold staging row count "
-                "does not match Spark source."
-            )
+        if staging_count != source_count:
+            raise RuntimeError("Gold staging row count does not match Spark source.")
 
-        print(
-            "[PASS] Gold staging validation passed."
-        )
+        print("[PASS] Gold staging validation passed.")
 
         # ====================================================
         # 7. Atomic Publish
@@ -348,52 +250,33 @@ def main() -> None:
             """
         )
 
-        print(
-            "[PASS] Gold production table published."
-        )
+        print("[PASS] Gold production table published.")
 
         # ====================================================
         # 8. Final Target Validation
         # ====================================================
 
-        target_df = (
-            read_clickhouse_table(
-                spark,
-                TRANSACTIONAL_OBT,
-            )
+        target_df = read_clickhouse_table(
+            spark,
+            TRANSACTIONAL_OBT,
         )
 
-        target_count = (
-            target_df.count()
-        )
+        target_count = target_df.count()
 
-        if (
-            target_count
-            !=
-            source_count
-        ):
-            raise RuntimeError(
-                "Published Gold row count mismatch."
-            )
+        if target_count != source_count:
+            raise RuntimeError("Published Gold row count mismatch.")
 
         print()
-        print(
-            f"Final Gold rows: "
-            f"{target_count:,}"
-        )
+        print(f"Final Gold rows: {target_count:,}")
 
         print()
         print("=" * 100)
-        print(
-            "[PASS] GOLD TRANSACTIONAL OBT "
-            "LOAD COMPLETED"
-        )
+        print("[PASS] GOLD TRANSACTIONAL OBT LOAD COMPLETED")
         print("=" * 100)
 
         obt_df.unpersist()
 
     finally:
-
         spark.stop()
 
 

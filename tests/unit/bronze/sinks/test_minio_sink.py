@@ -9,11 +9,7 @@ from spark_apps.bronze.sinks.minio_sink import (
     write_bronze_stream,
 )
 
-
-CHECKPOINT_BASE = (
-    "s3a://commerceflow-lakehouse/"
-    "checkpoints/bronze"
-)
+CHECKPOINT_BASE = "s3a://commerceflow-lakehouse/checkpoints/bronze"
 
 
 def _build_mock_dataframe(
@@ -43,14 +39,9 @@ def test_topic_to_path_builds_expected_path(
         "s3a://commerceflow-lakehouse/bronze",
     )
 
-    result = _topic_to_path(
-        "transactional.orders"
-    )
+    result = _topic_to_path("transactional.orders")
 
-    assert result == (
-        "s3a://commerceflow-lakehouse/"
-        "bronze/transactional/orders"
-    )
+    assert result == ("s3a://commerceflow-lakehouse/bronze/transactional/orders")
 
 
 def test_topic_to_path_removes_trailing_slash(
@@ -61,14 +52,9 @@ def test_topic_to_path_removes_trailing_slash(
         "s3a://commerceflow-lakehouse/bronze/",
     )
 
-    result = _topic_to_path(
-        "behavioral.events"
-    )
+    result = _topic_to_path("behavioral.events")
 
-    assert result == (
-        "s3a://commerceflow-lakehouse/"
-        "bronze/behavioral/events"
-    )
+    assert result == ("s3a://commerceflow-lakehouse/bronze/behavioral/events")
 
 
 def test_topic_to_path_raises_when_base_path_missing(
@@ -80,9 +66,7 @@ def test_topic_to_path_raises_when_base_path_missing(
     )
 
     with pytest.raises(KeyError):
-        _topic_to_path(
-            "transactional.orders"
-        )
+        _topic_to_path("transactional.orders")
 
 
 def test_topic_to_checkpoint_builds_expected_path():
@@ -91,26 +75,16 @@ def test_topic_to_checkpoint_builds_expected_path():
         topic="transactional.orders",
     )
 
-    assert result == (
-        "s3a://commerceflow-lakehouse/"
-        "checkpoints/bronze/"
-        "transactional/orders"
-    )
+    assert result == ("s3a://commerceflow-lakehouse/checkpoints/bronze/transactional/orders")
 
 
 def test_topic_to_checkpoint_removes_trailing_slash():
     result = _topic_to_checkpoint(
-        checkpoint_base=(
-            f"{CHECKPOINT_BASE}/"
-        ),
+        checkpoint_base=(f"{CHECKPOINT_BASE}/"),
         topic="behavioral.events",
     )
 
-    assert result == (
-        "s3a://commerceflow-lakehouse/"
-        "checkpoints/bronze/"
-        "behavioral/events"
-    )
+    assert result == ("s3a://commerceflow-lakehouse/checkpoints/bronze/behavioral/events")
 
 
 def test_validate_partition_columns_accepts_no_partitions():
@@ -146,9 +120,7 @@ def test_validate_partition_columns_rejects_missing_columns():
             ),
         )
 
-    error_message = str(
-        exc_info.value
-    )
+    error_message = str(exc_info.value)
 
     assert "month" in error_message
     assert "day" in error_message
@@ -163,14 +135,12 @@ def test_write_categories_without_partitioning(
         "s3a://commerceflow-lakehouse/bronze",
     )
 
-    df, writer, query = (
-        _build_mock_dataframe(
-            columns=[
-                "category_id",
-                "name",
-                "parent_category_id",
-            ]
-        )
+    df, writer, query = _build_mock_dataframe(
+        columns=[
+            "category_id",
+            "name",
+            "parent_category_id",
+        ]
     )
 
     result = write_bronze_stream(
@@ -179,32 +149,21 @@ def test_write_categories_without_partitioning(
         checkpoint_base=CHECKPOINT_BASE,
     )
 
-    writer.format.assert_called_once_with(
-        "parquet"
-    )
+    writer.format.assert_called_once_with("parquet")
 
     writer.option.assert_any_call(
         "path",
-        (
-            "s3a://commerceflow-lakehouse/"
-            "bronze/transactional/categories"
-        ),
+        ("s3a://commerceflow-lakehouse/bronze/transactional/categories"),
     )
 
     writer.option.assert_any_call(
         "checkpointLocation",
-        (
-            "s3a://commerceflow-lakehouse/"
-            "checkpoints/bronze/"
-            "transactional/categories"
-        ),
+        ("s3a://commerceflow-lakehouse/checkpoints/bronze/transactional/categories"),
     )
 
     writer.partitionBy.assert_not_called()
 
-    writer.outputMode.assert_called_once_with(
-        "append"
-    )
+    writer.outputMode.assert_called_once_with("append")
 
     writer.start.assert_called_once_with()
 
@@ -219,15 +178,13 @@ def test_write_orders_with_time_partitioning(
         "s3a://commerceflow-lakehouse/bronze",
     )
 
-    df, writer, query = (
-        _build_mock_dataframe(
-            columns=[
-                "order_id",
-                "year",
-                "month",
-                "day",
-            ]
-        )
+    df, writer, query = _build_mock_dataframe(
+        columns=[
+            "order_id",
+            "year",
+            "month",
+            "day",
+        ]
     )
 
     result = write_bronze_stream(
@@ -281,9 +238,7 @@ def test_write_unknown_topic_raises(
         "s3a://commerceflow-lakehouse/bronze",
     )
 
-    df, _, _ = _build_mock_dataframe(
-        columns=[]
-    )
+    df, _, _ = _build_mock_dataframe(columns=[])
 
     with pytest.raises(
         ValueError,

@@ -7,10 +7,9 @@ from spark_apps.silver.config.iceberg import (
     build_iceberg_spark,
 )
 from spark_apps.silver.config.tables import (
-    TOPIC_ORDERS,
     TOPIC_ORDER_ITEMS,
+    TOPIC_ORDERS,
 )
-
 
 METADATA_COLUMNS = {
     "kafka_key",
@@ -42,27 +41,20 @@ def profile_topic(
 
     total_count = df.count()
 
-    print(
-        f"Total records: {total_count:,}"
-    )
+    print(f"Total records: {total_count:,}")
 
     print("\nSCHEMA")
     print("-" * 110)
 
     df.printSchema()
 
-    business_columns = [
-        column
-        for column in df.columns
-        if column not in METADATA_COLUMNS
-    ]
+    business_columns = [column for column in df.columns if column not in METADATA_COLUMNS]
 
     print("\nNULL COUNTS")
     print("-" * 110)
 
     (
-        df
-        .select(
+        df.select(
             *[
                 F.sum(
                     F.when(
@@ -72,22 +64,14 @@ def profile_topic(
                 ).alias(column)
                 for column in business_columns
             ]
-        )
-        .show(
-            truncate=False
-        )
+        ).show(truncate=False)
     )
 
     print("\nSAMPLE")
     print("-" * 110)
 
     (
-        df
-        .orderBy(
-            F.col(
-                "kafka_timestamp"
-            ).desc()
-        )
+        df.orderBy(F.col("kafka_timestamp").desc())
         .limit(5)
         .show(
             truncate=False,
@@ -100,44 +84,19 @@ def profile_topic(
     # ---------------------------------------------------------
 
     if "order_id" in df.columns:
+        distinct_orders = df.select("order_id").distinct().count()
 
-        distinct_orders = (
-            df
-            .select(
-                "order_id"
-            )
-            .distinct()
-            .count()
-        )
+        print(f"\nDistinct order_id: {distinct_orders:,}")
 
-        print(
-            f"\nDistinct order_id: "
-            f"{distinct_orders:,}"
-        )
+        print(f"Repeated order records: {total_count - distinct_orders:,}")
 
-        print(
-            f"Repeated order records: "
-            f"{total_count - distinct_orders:,}"
-        )
-
-        print(
-            "\nTOP REPEATED ORDERS"
-        )
+        print("\nTOP REPEATED ORDERS")
 
         (
-            df
-            .groupBy(
-                "order_id"
-            )
+            df.groupBy("order_id")
             .count()
-            .filter(
-                F.col("count") > 1
-            )
-            .orderBy(
-                F.col(
-                    "count"
-                ).desc()
-            )
+            .filter(F.col("count") > 1)
+            .orderBy(F.col("count").desc())
             .show(
                 20,
                 truncate=False,
@@ -158,53 +117,22 @@ def profile_topic(
     )
 
     for column in numeric_candidates:
-
         if column not in df.columns:
             continue
 
-        print(
-            f"\nNUMERIC PROFILE: "
-            f"{column}"
-        )
+        print(f"\nNUMERIC PROFILE: {column}")
 
         (
-            df
-            .select(
-                F.min(
-                    column
-                ).alias(
-                    "min"
-                ),
-                F.max(
-                    column
-                ).alias(
-                    "max"
-                ),
-                F.avg(
-                    column
-                ).alias(
-                    "avg"
-                ),
-            )
-            .show(
-                truncate=False
-            )
+            df.select(
+                F.min(column).alias("min"),
+                F.max(column).alias("max"),
+                F.avg(column).alias("avg"),
+            ).show(truncate=False)
         )
 
-        invalid_count = (
-            df
-            .filter(
-                F.col(
-                    column
-                ) < 0
-            )
-            .count()
-        )
+        invalid_count = df.filter(F.col(column) < 0).count()
 
-        print(
-            f"Negative {column}: "
-            f"{invalid_count:,}"
-        )
+        print(f"Negative {column}: {invalid_count:,}")
 
     # ---------------------------------------------------------
     # Distinct values for likely status columns
@@ -215,25 +143,15 @@ def profile_topic(
         "order_status",
         "payment_method",
     ):
-
         if column not in df.columns:
             continue
 
-        print(
-            f"\nVALUES: {column}"
-        )
+        print(f"\nVALUES: {column}")
 
         (
-            df
-            .groupBy(
-                column
-            )
+            df.groupBy(column)
             .count()
-            .orderBy(
-                F.col(
-                    "count"
-                ).desc()
-            )
+            .orderBy(F.col("count").desc())
             .show(
                 50,
                 truncate=False,
@@ -243,12 +161,9 @@ def profile_topic(
 
 def main() -> None:
 
-    spark = build_iceberg_spark(
-        "profile-silver-orders"
-    )
+    spark = build_iceberg_spark("profile-silver-orders")
 
     try:
-
         profile_topic(
             spark,
             TOPIC_ORDERS,
@@ -261,9 +176,7 @@ def main() -> None:
 
         print()
         print("=" * 110)
-        print(
-            "[PASS] ORDER SOURCES PROFILING COMPLETED"
-        )
+        print("[PASS] ORDER SOURCES PROFILING COMPLETED")
         print("=" * 110)
 
     finally:

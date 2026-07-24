@@ -412,7 +412,7 @@ services:
       dockerfile: ./jupyter/Dockerfile
       args:
         SPARK_IMAGE: ${SPARK_IMAGE}
-      
+
     cpus: "1.0"
     mem_limit: 2G
 
@@ -504,7 +504,7 @@ services:
       - "traefik.http.routers.jupyter.entrypoints=web"
       - "traefik.http.routers.jupyter.service=jupyter"
       - "traefik.http.services.jupyter.loadbalancer.server.port=8888"
-      
+
 
   #──────────────────────────────────────────────────────────────────────
   # Airflow Init

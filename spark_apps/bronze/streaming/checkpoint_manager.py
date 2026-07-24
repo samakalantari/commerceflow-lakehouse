@@ -17,7 +17,7 @@ def build_checkpoint_path(
 
     if not topic:
         raise ValueError("Kafka topic must not be empty")
-    
+
     if not query_name:
         raise ValueError("Query name must not be empty")
 
@@ -27,25 +27,14 @@ def build_checkpoint_path(
     safe_topic = normalize_name(topic)
     safe_query = normalize_name(query_name)
     safe_version = normalize_name(version)
-    
+
     if not safe_topic:
-        raise ValueError(
-            "Kafka topic must contain valid characters"
-        )
+        raise ValueError("Kafka topic must contain valid characters")
 
     if not safe_query:
-        raise ValueError(
-            "Query name must contain valid characters"
-        )
+        raise ValueError("Query name must contain valid characters")
 
     if not safe_version:
-        raise ValueError(
-            "Checkpoint version must contain valid characters"
-        )
+        raise ValueError("Checkpoint version must contain valid characters")
 
-    return (
-        f"{base_path.rstrip('/')}/"
-        f"{safe_query}/"
-        f"{safe_topic}/"
-        f"{safe_version}"
-    )
+    return f"{base_path.rstrip('/')}/{safe_query}/{safe_topic}/{safe_version}"

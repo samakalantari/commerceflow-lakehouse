@@ -18,12 +18,9 @@ from spark_apps.silver.facts.fact_order import (
 
 def main() -> None:
 
-    spark = build_iceberg_spark(
-        "silver-load-fact-order"
-    )
+    spark = build_iceberg_spark("silver-load-fact-order")
 
     try:
-
         print("=" * 100)
         print("BUILDING FACT_ORDER")
         print("=" * 100)
@@ -37,68 +34,28 @@ def main() -> None:
             TOPIC_ORDERS,
         )
 
-        dim_user_df = spark.table(
-            DIM_USER
-        )
+        dim_user_df = spark.table(DIM_USER)
 
         # -----------------------------------------------------
         # 2. Build canonical source
         # -----------------------------------------------------
 
-        source_df = (
-            build_fact_order_source(
-                orders_df,
-                dim_user_df,
-            )
-            .cache()
-        )
+        source_df = build_fact_order_source(
+            orders_df,
+            dim_user_df,
+        ).cache()
 
-        source_count = (
-            source_df.count()
-        )
+        source_count = source_df.count()
 
-        source_distinct_orders = (
-            source_df
-            .select(
-                "order_id"
-            )
-            .distinct()
-            .count()
-        )
+        source_distinct_orders = source_df.select("order_id").distinct().count()
 
         source_duplicate_order_sk = (
-            source_df
-            .groupBy(
-                "order_sk"
-            )
-            .count()
-            .filter(
-                F.col(
-                    "count"
-                ) > 1
-            )
-            .count()
+            source_df.groupBy("order_sk").count().filter(F.col("count") > 1).count()
         )
 
-        missing_user_sk = (
-            source_df
-            .filter(
-                F.col(
-                    "user_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        missing_user_sk = source_df.filter(F.col("user_sk").isNull()).count()
 
-        unknown_user_count = (
-            source_df
-            .filter(
-                F.col(
-                    "user_sk"
-                ) == -1
-            )
-            .count()
-        )
+        unknown_user_count = source_df.filter(F.col("user_sk") == -1).count()
 
         # -----------------------------------------------------
         # 3. Pre-write audit
@@ -108,53 +65,24 @@ def main() -> None:
         print("FACT_ORDER SOURCE AUDIT")
         print("-" * 100)
 
-        print(
-            f"Source rows: "
-            f"{source_count:,}"
-        )
+        print(f"Source rows: {source_count:,}")
 
-        print(
-            f"Distinct orders: "
-            f"{source_distinct_orders:,}"
-        )
+        print(f"Distinct orders: {source_distinct_orders:,}")
 
-        print(
-            f"Duplicate order_sk: "
-            f"{source_duplicate_order_sk:,}"
-        )
+        print(f"Duplicate order_sk: {source_duplicate_order_sk:,}")
 
-        print(
-            f"Null user_sk: "
-            f"{missing_user_sk:,}"
-        )
+        print(f"Null user_sk: {missing_user_sk:,}")
 
-        print(
-            f"Orders mapped to Unknown User: "
-            f"{unknown_user_count:,}"
-        )
+        print(f"Orders mapped to Unknown User: {unknown_user_count:,}")
 
         if (
-            source_count
-            !=
-            source_distinct_orders
-            or
-            source_duplicate_order_sk
-            !=
-            0
-            or
-            missing_user_sk
-            !=
-            0
+            source_count != source_distinct_orders
+            or source_duplicate_order_sk != 0
+            or missing_user_sk != 0
         ):
-            raise RuntimeError(
-                "FACT_ORDER canonical source "
-                "audit failed."
-            )
+            raise RuntimeError("FACT_ORDER canonical source audit failed.")
 
-        print(
-            "[PASS] FACT_ORDER canonical "
-            "source audit completed."
-        )
+        print("[PASS] FACT_ORDER canonical source audit completed.")
 
         # -----------------------------------------------------
         # 4. Create Iceberg Fact Table
@@ -192,14 +120,9 @@ def main() -> None:
         # -----------------------------------------------------
 
         write_df = (
-            source_df
-            .withColumn(
+            source_df.withColumn(
                 "order_total",
-                F.col(
-                    "order_total"
-                ).cast(
-                    "decimal(10,2)"
-                ),
+                F.col("order_total").cast("decimal(10,2)"),
             )
             .withColumn(
                 "silver_created_at",
@@ -231,126 +154,49 @@ def main() -> None:
         # canonical source to remove stale or duplicate rows.
         # -----------------------------------------------------
 
-        (
-            write_df
-            .writeTo(
-                FACT_ORDER
-            )
-            .overwrite(
-                F.lit(
-                    True
-                )
-            )
-        )
+        (write_df.writeTo(FACT_ORDER).overwrite(F.lit(True)))
 
-        print(
-            "[PASS] FACT_ORDER FULL OVERWRITE "
-            "completed."
-        )
+        print("[PASS] FACT_ORDER FULL OVERWRITE completed.")
 
         # -----------------------------------------------------
         # 7. Final Audit
         # -----------------------------------------------------
 
-        fact_df = spark.table(
-            FACT_ORDER
-        )
+        fact_df = spark.table(FACT_ORDER)
 
-        fact_count = (
-            fact_df.count()
-        )
+        fact_count = fact_df.count()
 
-        distinct_orders = (
-            fact_df
-            .select(
-                "order_id"
-            )
-            .distinct()
-            .count()
-        )
+        distinct_orders = fact_df.select("order_id").distinct().count()
 
-        null_users = (
-            fact_df
-            .filter(
-                F.col(
-                    "user_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        null_users = fact_df.filter(F.col("user_sk").isNull()).count()
 
-        duplicate_order_sk = (
-            fact_df
-            .groupBy(
-                "order_sk"
-            )
-            .count()
-            .filter(
-                F.col(
-                    "count"
-                ) > 1
-            )
-            .count()
-        )
+        duplicate_order_sk = fact_df.groupBy("order_sk").count().filter(F.col("count") > 1).count()
 
         print()
         print("FACT_ORDER AUDIT")
         print("-" * 100)
 
-        print(
-            f"Fact rows: "
-            f"{fact_count:,}"
-        )
+        print(f"Fact rows: {fact_count:,}")
 
-        print(
-            f"Distinct orders: "
-            f"{distinct_orders:,}"
-        )
+        print(f"Distinct orders: {distinct_orders:,}")
 
-        print(
-            f"Duplicate order_sk: "
-            f"{duplicate_order_sk:,}"
-        )
+        print(f"Duplicate order_sk: {duplicate_order_sk:,}")
 
-        print(
-            f"Null user_sk: "
-            f"{null_users:,}"
-        )
+        print(f"Null user_sk: {null_users:,}")
 
-        if (
-            fact_count
-            ==
-            distinct_orders
-            and
-            duplicate_order_sk
-            ==
-            0
-            and
-            null_users
-            ==
-            0
-        ):
-
+        if fact_count == distinct_orders and duplicate_order_sk == 0 and null_users == 0:
             print()
-            print(
-                "[PASS] FACT_ORDER LOAD COMPLETED"
-            )
+            print("[PASS] FACT_ORDER LOAD COMPLETED")
 
         else:
-
             print()
-            print(
-                "[FAIL] FACT_ORDER AUDIT FAILED"
-            )
+            print("[FAIL] FACT_ORDER AUDIT FAILED")
 
-            raise RuntimeError(
-                "FACT_ORDER audit failed."
-            )
+            raise RuntimeError("FACT_ORDER audit failed.")
 
         source_df.unpersist()
 
     finally:
-
         spark.stop()
 
 

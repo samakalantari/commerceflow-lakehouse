@@ -16,7 +16,6 @@ from spark_apps.silver.dimensions.dim_date import (
     build_dim_date,
 )
 
-
 DEFAULT_FUTURE_END_DATE = date(
     2030,
     12,
@@ -26,12 +25,9 @@ DEFAULT_FUTURE_END_DATE = date(
 
 def main() -> None:
 
-    spark = build_iceberg_spark(
-        "silver-load-dim-date"
-    )
+    spark = build_iceberg_spark("silver-load-dim-date")
 
     try:
-
         print("=" * 100)
         print("BUILDING DIM_DATE")
         print("=" * 100)
@@ -45,48 +41,17 @@ def main() -> None:
             TOPIC_ORDERS,
         )
 
-        bounds = (
-            orders_df
-            .select(
-                F.min(
-                    F.to_date(
-                        F.col("timestamp")
-                    )
-                ).alias(
-                    "min_order_date"
-                ),
+        bounds = orders_df.select(
+            F.min(F.to_date(F.col("timestamp"))).alias("min_order_date"),
+            F.max(F.to_date(F.col("timestamp"))).alias("max_order_date"),
+        ).first()
 
-                F.max(
-                    F.to_date(
-                        F.col("timestamp")
-                    )
-                ).alias(
-                    "max_order_date"
-                ),
-            )
-            .first()
-        )
+        min_order_date = bounds["min_order_date"]
 
-        min_order_date = (
-            bounds[
-                "min_order_date"
-            ]
-        )
+        max_order_date = bounds["max_order_date"]
 
-        max_order_date = (
-            bounds[
-                "max_order_date"
-            ]
-        )
-
-        if (
-            min_order_date is None
-            or max_order_date is None
-        ):
-            raise RuntimeError(
-                "Cannot determine "
-                "order date range."
-            )
+        if min_order_date is None or max_order_date is None:
+            raise RuntimeError("Cannot determine order date range.")
 
         # Keep future dates available
         # while dynamically supporting
@@ -97,30 +62,15 @@ def main() -> None:
             DEFAULT_FUTURE_END_DATE,
         )
 
-        start_date_str = (
-            min_order_date.isoformat()
-        )
+        start_date_str = min_order_date.isoformat()
 
-        end_date_str = (
-            end_date.isoformat()
-        )
+        end_date_str = end_date.isoformat()
 
-        print(
-            f"Minimum order date: "
-            f"{start_date_str}"
-        )
+        print(f"Minimum order date: {start_date_str}")
 
-        print(
-            f"Maximum order date: "
-            f"{max_order_date}"
-        )
+        print(f"Maximum order date: {max_order_date}")
 
-        print(
-            f"DIM_DATE range: "
-            f"{start_date_str} "
-            f"to "
-            f"{end_date_str}"
-        )
+        print(f"DIM_DATE range: {start_date_str} to {end_date_str}")
 
         # -----------------------------------------------------
         # Build complete date dimension
@@ -132,14 +82,9 @@ def main() -> None:
             end_date=end_date_str,
         ).cache()
 
-        generated_count = (
-            dim_date_df.count()
-        )
+        generated_count = dim_date_df.count()
 
-        print(
-            f"Generated date rows: "
-            f"{generated_count:,}"
-        )
+        print(f"Generated date rows: {generated_count:,}")
 
         # -----------------------------------------------------
         # Ensure Iceberg table exists
@@ -176,9 +121,7 @@ def main() -> None:
         # Missing historical dates are inserted.
         # -----------------------------------------------------
 
-        dim_date_df.createOrReplaceTempView(
-            "staged_dim_date"
-        )
+        dim_date_df.createOrReplaceTempView("staged_dim_date")
 
         spark.sql(
             f"""
@@ -224,67 +167,37 @@ def main() -> None:
             """
         )
 
-        print(
-            "[PASS] DIM_DATE MERGE completed."
-        )
+        print("[PASS] DIM_DATE MERGE completed.")
 
         # -----------------------------------------------------
         # Final audit
         # -----------------------------------------------------
 
-        final_df = spark.table(
-            DIM_DATE
-        )
+        final_df = spark.table(DIM_DATE)
 
-        final_count = (
-            final_df.count()
-        )
+        final_count = final_df.count()
 
-        final_bounds = (
-            final_df
-            .select(
-                F.min(
-                    "full_date"
-                ).alias(
-                    "min_date"
-                ),
-                F.max(
-                    "full_date"
-                ).alias(
-                    "max_date"
-                ),
-            )
-            .first()
-        )
+        final_bounds = final_df.select(
+            F.min("full_date").alias("min_date"),
+            F.max("full_date").alias("max_date"),
+        ).first()
 
         print()
         print("DIM_DATE AUDIT")
         print("-" * 100)
 
-        print(
-            f"Total rows: "
-            f"{final_count:,}"
-        )
+        print(f"Total rows: {final_count:,}")
 
-        print(
-            f"Minimum date: "
-            f"{final_bounds['min_date']}"
-        )
+        print(f"Minimum date: {final_bounds['min_date']}")
 
-        print(
-            f"Maximum date: "
-            f"{final_bounds['max_date']}"
-        )
+        print(f"Maximum date: {final_bounds['max_date']}")
 
         print()
-        print(
-            "[PASS] DIM_DATE LOAD COMPLETED"
-        )
+        print("[PASS] DIM_DATE LOAD COMPLETED")
 
         dim_date_df.unpersist()
 
     finally:
-
         spark.stop()
 
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
@@ -28,28 +29,19 @@ def build_dim_user_source(
     # Keep the latest Kafka version of each user.
     # ---------------------------------------------------------
 
-    window = (
-        Window
-        .partitionBy("user_id")
-        .orderBy(
-            F.col("kafka_timestamp").desc(),
-            F.col("kafka_partition").desc(),
-            F.col("kafka_offset").desc(),
-        )
+    window = Window.partitionBy("user_id").orderBy(
+        F.col("kafka_timestamp").desc(),
+        F.col("kafka_partition").desc(),
+        F.col("kafka_offset").desc(),
     )
 
     df = (
-        bronze_df
-        .withColumn(
+        bronze_df.withColumn(
             "_row_number",
             F.row_number().over(window),
         )
-        .filter(
-            F.col("_row_number") == 1
-        )
-        .drop(
-            "_row_number"
-        )
+        .filter(F.col("_row_number") == 1)
+        .drop("_row_number")
     )
 
     # ---------------------------------------------------------
@@ -57,53 +49,32 @@ def build_dim_user_source(
     # ---------------------------------------------------------
 
     df = (
-        df
-        .withColumn(
+        df.withColumn(
             "user_id",
-            F.trim(
-                F.col("user_id")
-            ),
+            F.trim(F.col("user_id")),
         )
         .withColumn(
             "username",
-            F.trim(
-                F.col("username")
-            ),
+            F.trim(F.col("username")),
         )
         .withColumn(
             "email",
-            F.lower(
-                F.trim(
-                    F.col("email")
-                )
-            ),
+            F.lower(F.trim(F.col("email"))),
         )
         .withColumn(
             "device",
             F.coalesce(
-                F.trim(
-                    F.col("device")
-                ),
+                F.trim(F.col("device")),
                 F.lit("Unknown"),
             ),
         )
         .withColumn(
             "loyalty_tier",
-            F.initcap(
-                F.lower(
-                    F.trim(
-                        F.col(
-                            "loyalty_tier"
-                        )
-                    )
-                )
-            ),
+            F.initcap(F.lower(F.trim(F.col("loyalty_tier")))),
         )
         .withColumn(
             "location",
-            F.trim(
-                F.col("location")
-            ),
+            F.trim(F.col("location")),
         )
     )
 
@@ -111,104 +82,43 @@ def build_dim_user_source(
     # 3. Data quality rules
     # ---------------------------------------------------------
 
-    email_pattern = (
-        r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
-    )
+    email_pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
     df = df.withColumn(
         "_dq_error_reason",
         F.concat_ws(
             "; ",
-
             F.when(
-                F.col("user_id").isNull()
-                | (
-                    F.length(
-                        F.col("user_id")
-                    ) == 0
-                ),
-                F.lit(
-                    "missing_user_id"
-                ),
+                F.col("user_id").isNull() | (F.length(F.col("user_id")) == 0),
+                F.lit("missing_user_id"),
             ),
-
             F.when(
-                F.col("username").isNull()
-                | (
-                    F.length(
-                        F.col("username")
-                    ) == 0
-                ),
-                F.lit(
-                    "missing_username"
-                ),
+                F.col("username").isNull() | (F.length(F.col("username")) == 0),
+                F.lit("missing_username"),
             ),
-
             F.when(
-                F.col("email").isNull()
-                | (
-                    F.length(
-                        F.col("email")
-                    ) == 0
-                ),
-                F.lit(
-                    "missing_email"
-                ),
+                F.col("email").isNull() | (F.length(F.col("email")) == 0),
+                F.lit("missing_email"),
             ),
-
             F.when(
-                F.col("email").isNotNull()
-                & ~F.col(
-                    "email"
-                ).rlike(
-                    email_pattern
-                ),
-                F.lit(
-                    "invalid_email"
-                ),
+                F.col("email").isNotNull() & ~F.col("email").rlike(email_pattern),
+                F.lit("invalid_email"),
             ),
-
             F.when(
-                F.col(
-                    "signup_date"
-                ).isNull(),
-                F.lit(
-                    "missing_signup_date"
-                ),
+                F.col("signup_date").isNull(),
+                F.lit("missing_signup_date"),
             ),
-
             F.when(
-                F.col("signup_date")
-                > F.current_date(),
-                F.lit(
-                    "future_signup_date"
-                ),
+                F.col("signup_date") > F.current_date(),
+                F.lit("future_signup_date"),
             ),
-
             F.when(
-                F.col(
-                    "loyalty_tier"
-                ).isNull()
-                | ~F.col(
-                    "loyalty_tier"
-                ).isin(
-                    *VALID_LOYALTY_TIERS
-                ),
-                F.lit(
-                    "invalid_loyalty_tier"
-                ),
+                F.col("loyalty_tier").isNull() | ~F.col("loyalty_tier").isin(*VALID_LOYALTY_TIERS),
+                F.lit("invalid_loyalty_tier"),
             ),
-
             F.when(
-                F.col("location").isNull()
-                | (
-                    F.length(
-                        F.col("location")
-                    ) == 0
-                ),
-                F.lit(
-                    "missing_location"
-                ),
+                F.col("location").isNull() | (F.length(F.col("location")) == 0),
+                F.lit("missing_location"),
             ),
         ),
     )
@@ -217,70 +127,36 @@ def build_dim_user_source(
     # 4. Split valid / invalid
     # ---------------------------------------------------------
 
-    valid_df = (
-        df
-        .filter(
-            F.col(
-                "_dq_error_reason"
-            ) == ""
-        )
-        .select(
-            # Deterministic surrogate key
-            F.xxhash64(
-                "user_id"
-            ).alias(
-                "user_sk"
+    valid_df = df.filter(F.col("_dq_error_reason") == "").select(
+        # Deterministic surrogate key
+        F.xxhash64("user_id").alias("user_sk"),
+        "user_id",
+        "username",
+        "email",
+        "signup_date",
+        "device",
+        "loyalty_tier",
+        "location",
+        F.sha2(
+            F.concat_ws(
+                "||",
+                F.col("username"),
+                F.col("email"),
+                F.col("signup_date").cast("string"),
+                F.col("device"),
+                F.col("loyalty_tier"),
+                F.col("location"),
             ),
-
-            "user_id",
-            "username",
-            "email",
-            "signup_date",
-            "device",
-            "loyalty_tier",
-            "location",
-
-            F.sha2(
-                F.concat_ws(
-                    "||",
-                    F.col("username"),
-                    F.col("email"),
-                    F.col(
-                        "signup_date"
-                    ).cast(
-                        "string"
-                    ),
-                    F.col("device"),
-                    F.col(
-                        "loyalty_tier"
-                    ),
-                    F.col("location"),
-                ),
-                256,
-            ).alias(
-                "record_hash"
-            ),
-
-            F.col(
-                "kafka_timestamp"
-            ).alias(
-                "source_kafka_timestamp"
-            ),
-        )
+            256,
+        ).alias("record_hash"),
+        F.col("kafka_timestamp").alias("source_kafka_timestamp"),
     )
 
     invalid_df = (
-        df
-        .filter(
-            F.col(
-                "_dq_error_reason"
-            ) != ""
-        )
+        df.filter(F.col("_dq_error_reason") != "")
         .withColumn(
             "_dq_entity",
-            F.lit(
-                "user"
-            ),
+            F.lit("user"),
         )
         .withColumn(
             "_dq_quarantined_at",

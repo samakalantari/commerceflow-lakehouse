@@ -17,7 +17,6 @@ from pyspark.sql.types import (
 
 from spark_apps.bronze.config.topic_metadata import get_partition_config
 
-
 NUMERIC_TIMESTAMP_TYPES = (
     ByteType,
     ShortType,
@@ -28,13 +27,14 @@ NUMERIC_TIMESTAMP_TYPES = (
 EPOCH_MILLISECONDS_THRESHOLD = 100_000_000_000
 
 
-def _resolve_timestamp_source(df: DataFrame,topic: str,) -> str:
+def _resolve_timestamp_source(
+    df: DataFrame,
+    topic: str,
+) -> str:
     config = get_partition_config(topic)
 
     if config is None:
-        raise ValueError(
-            f"Topic '{topic}' is configured without partitioning."
-        )
+        raise ValueError(f"Topic '{topic}' is configured without partitioning.")
 
     timestamp_field = config["timestamp_field"]
 
@@ -58,7 +58,10 @@ def _resolve_timestamp_source(df: DataFrame,topic: str,) -> str:
     )
 
 
-def _build_timestamp_expression(df: DataFrame, source_field: str,):
+def _build_timestamp_expression(
+    df: DataFrame,
+    source_field: str,
+):
     source_type = df.schema[source_field].dataType
 
     if isinstance(source_type, NUMERIC_TIMESTAMP_TYPES):
@@ -69,16 +72,12 @@ def _build_timestamp_expression(df: DataFrame, source_field: str,):
             numeric_value / 1000,
         ).otherwise(numeric_value)
 
-        return to_timestamp(
-            from_unixtime(epoch_seconds)
-        )
+        return to_timestamp(from_unixtime(epoch_seconds))
 
-    return to_timestamp(
-        col(source_field)
-    )
+    return to_timestamp(col(source_field))
 
 
-def add_time_partitions(df: DataFrame,topic: str) -> DataFrame:
+def add_time_partitions(df: DataFrame, topic: str) -> DataFrame:
     """
     Add Hive-style time partition columns when the topic
     is configured for time partitioning.
@@ -110,18 +109,15 @@ def add_time_partitions(df: DataFrame,topic: str) -> DataFrame:
         topic=topic,
     )
 
-    partition_timestamp_column = ("__partition_timestamp")
+    partition_timestamp_column = "__partition_timestamp"
 
-    timestamp_expression = (
-        _build_timestamp_expression(
-            df=df,
-            source_field=source_field,
-        )
+    timestamp_expression = _build_timestamp_expression(
+        df=df,
+        source_field=source_field,
     )
 
     return (
-        df
-        .withColumn(
+        df.withColumn(
             partition_timestamp_column,
             timestamp_expression,
         )

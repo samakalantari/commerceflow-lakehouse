@@ -26,7 +26,6 @@ TOPIC_PARTITION_CONFIG: Dict[
             "day",
         ),
     },
-
     "transactional.users": {
         "timestamp_field": "signup_date",
         "columns": (
@@ -35,7 +34,6 @@ TOPIC_PARTITION_CONFIG: Dict[
             "day",
         ),
     },
-
     "transactional.orders": {
         "timestamp_field": "timestamp",
         "columns": (
@@ -44,7 +42,6 @@ TOPIC_PARTITION_CONFIG: Dict[
             "day",
         ),
     },
-
     "transactional.order_items": {
         "timestamp_field": "ingested_at",
         "columns": (
@@ -53,7 +50,6 @@ TOPIC_PARTITION_CONFIG: Dict[
             "day",
         ),
     },
-
     "transactional.returns_refunds": {
         "timestamp_field": "ingested_at",
         "columns": (
@@ -62,7 +58,6 @@ TOPIC_PARTITION_CONFIG: Dict[
             "day",
         ),
     },
-
     "transactional.product_price_history": {
         "timestamp_field": "valid_from",
         "columns": (
@@ -71,7 +66,6 @@ TOPIC_PARTITION_CONFIG: Dict[
             "day",
         ),
     },
-
     "behavioral.events": {
         "timestamp_field": "timestamp",
         "columns": (
@@ -87,9 +81,7 @@ def get_partition_config(
     topic: str,
 ) -> Optional[PartitionConfig]:
     if topic not in TOPIC_PARTITION_CONFIG:
-        raise ValueError(
-            f"No partition configuration found for topic: {topic}"
-        )
+        raise ValueError(f"No partition configuration found for topic: {topic}")
 
     return TOPIC_PARTITION_CONFIG[topic]
 

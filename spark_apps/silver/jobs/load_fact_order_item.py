@@ -19,12 +19,9 @@ from spark_apps.silver.facts.fact_order_item import (
 
 def main() -> None:
 
-    spark = build_iceberg_spark(
-        "silver-load-fact-order-item"
-    )
+    spark = build_iceberg_spark("silver-load-fact-order-item")
 
     try:
-
         print("=" * 100)
         print("BUILDING FACT_ORDER_ITEM")
         print("=" * 100)
@@ -38,97 +35,37 @@ def main() -> None:
             TOPIC_ORDER_ITEMS,
         )
 
-        fact_order_df = spark.table(
-            FACT_ORDER
-        )
+        fact_order_df = spark.table(FACT_ORDER)
 
-        dim_product_df = spark.table(
-            DIM_PRODUCT
-        )
+        dim_product_df = spark.table(DIM_PRODUCT)
 
         # -----------------------------------------------------
         # 2. Build canonical source
         # -----------------------------------------------------
 
-        source_df = (
-            build_fact_order_item_source(
-                items_df,
-                fact_order_df,
-                dim_product_df,
-            )
-            .cache()
-        )
+        source_df = build_fact_order_item_source(
+            items_df,
+            fact_order_df,
+            dim_product_df,
+        ).cache()
 
-        source_count = (
-            source_df.count()
-        )
+        source_count = source_df.count()
 
-        source_distinct_items = (
-            source_df
-            .select(
-                "order_item_id"
-            )
-            .distinct()
-            .count()
-        )
+        source_distinct_items = source_df.select("order_item_id").distinct().count()
 
         duplicate_order_item_sk = (
-            source_df
-            .groupBy(
-                "order_item_sk"
-            )
-            .count()
-            .filter(
-                F.col(
-                    "count"
-                ) > 1
-            )
-            .count()
+            source_df.groupBy("order_item_sk").count().filter(F.col("count") > 1).count()
         )
 
-        temporal_count = (
-            source_df
-            .filter(
-                F.col(
-                    "product_resolution"
-                )
-                ==
-                "temporal"
-            )
-            .count()
-        )
+        temporal_count = source_df.filter(F.col("product_resolution") == "temporal").count()
 
-        fallback_count = (
-            source_df
-            .filter(
-                F.col(
-                    "product_resolution"
-                )
-                ==
-                "earliest_fallback"
-            )
-            .count()
-        )
+        fallback_count = source_df.filter(
+            F.col("product_resolution") == "earliest_fallback"
+        ).count()
 
-        missing_product_sk = (
-            source_df
-            .filter(
-                F.col(
-                    "product_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        missing_product_sk = source_df.filter(F.col("product_sk").isNull()).count()
 
-        missing_order_sk = (
-            source_df
-            .filter(
-                F.col(
-                    "order_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        missing_order_sk = source_df.filter(F.col("order_sk").isNull()).count()
 
         # -----------------------------------------------------
         # 3. Pre-write source audit
@@ -138,67 +75,29 @@ def main() -> None:
         print("FACT_ORDER_ITEM SOURCE AUDIT")
         print("-" * 100)
 
-        print(
-            f"Source rows: "
-            f"{source_count:,}"
-        )
+        print(f"Source rows: {source_count:,}")
 
-        print(
-            f"Distinct items: "
-            f"{source_distinct_items:,}"
-        )
+        print(f"Distinct items: {source_distinct_items:,}")
 
-        print(
-            f"Duplicate order_item_sk: "
-            f"{duplicate_order_item_sk:,}"
-        )
+        print(f"Duplicate order_item_sk: {duplicate_order_item_sk:,}")
 
-        print(
-            f"Temporal matches: "
-            f"{temporal_count:,}"
-        )
+        print(f"Temporal matches: {temporal_count:,}")
 
-        print(
-            f"Earliest fallbacks: "
-            f"{fallback_count:,}"
-        )
+        print(f"Earliest fallbacks: {fallback_count:,}")
 
-        print(
-            f"Missing product_sk: "
-            f"{missing_product_sk:,}"
-        )
+        print(f"Missing product_sk: {missing_product_sk:,}")
 
-        print(
-            f"Missing order_sk: "
-            f"{missing_order_sk:,}"
-        )
+        print(f"Missing order_sk: {missing_order_sk:,}")
 
         if (
-            source_count
-            !=
-            source_distinct_items
-            or
-            duplicate_order_item_sk
-            !=
-            0
-            or
-            missing_product_sk
-            !=
-            0
-            or
-            missing_order_sk
-            !=
-            0
+            source_count != source_distinct_items
+            or duplicate_order_item_sk != 0
+            or missing_product_sk != 0
+            or missing_order_sk != 0
         ):
-            raise RuntimeError(
-                "FACT_ORDER_ITEM canonical "
-                "source audit failed."
-            )
+            raise RuntimeError("FACT_ORDER_ITEM canonical source audit failed.")
 
-        print(
-            "[PASS] FACT_ORDER_ITEM canonical "
-            "source audit completed."
-        )
+        print("[PASS] FACT_ORDER_ITEM canonical source audit completed.")
 
         # -----------------------------------------------------
         # 4. Create Iceberg fact table
@@ -240,22 +139,13 @@ def main() -> None:
         # -----------------------------------------------------
 
         write_df = (
-            source_df
-            .withColumn(
+            source_df.withColumn(
                 "unit_price",
-                F.col(
-                    "unit_price"
-                ).cast(
-                    "decimal(10,2)"
-                ),
+                F.col("unit_price").cast("decimal(10,2)"),
             )
             .withColumn(
                 "item_total_amount",
-                F.col(
-                    "item_total_amount"
-                ).cast(
-                    "decimal(10,2)"
-                ),
+                F.col("item_total_amount").cast("decimal(10,2)"),
             )
             .withColumn(
                 "silver_created_at",
@@ -291,161 +181,65 @@ def main() -> None:
         # complete canonical source.
         # -----------------------------------------------------
 
-        (
-            write_df
-            .writeTo(
-                FACT_ORDER_ITEM
-            )
-            .overwrite(
-                F.lit(
-                    True
-                )
-            )
-        )
+        (write_df.writeTo(FACT_ORDER_ITEM).overwrite(F.lit(True)))
 
-        print(
-            "[PASS] FACT_ORDER_ITEM "
-            "FULL OVERWRITE completed."
-        )
+        print("[PASS] FACT_ORDER_ITEM FULL OVERWRITE completed.")
 
         # -----------------------------------------------------
         # 7. Final Audit
         # -----------------------------------------------------
 
-        fact_df = spark.table(
-            FACT_ORDER_ITEM
-        )
+        fact_df = spark.table(FACT_ORDER_ITEM)
 
-        fact_count = (
-            fact_df.count()
-        )
+        fact_count = fact_df.count()
 
-        distinct_items = (
-            fact_df
-            .select(
-                "order_item_id"
-            )
-            .distinct()
-            .count()
-        )
+        distinct_items = fact_df.select("order_item_id").distinct().count()
 
         duplicate_target_sk = (
-            fact_df
-            .groupBy(
-                "order_item_sk"
-            )
-            .count()
-            .filter(
-                F.col(
-                    "count"
-                ) > 1
-            )
-            .count()
+            fact_df.groupBy("order_item_sk").count().filter(F.col("count") > 1).count()
         )
 
-        null_products = (
-            fact_df
-            .filter(
-                F.col(
-                    "product_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        null_products = fact_df.filter(F.col("product_sk").isNull()).count()
 
-        null_orders = (
-            fact_df
-            .filter(
-                F.col(
-                    "order_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        null_orders = fact_df.filter(F.col("order_sk").isNull()).count()
 
         print()
         print("FACT_ORDER_ITEM AUDIT")
         print("-" * 100)
 
-        print(
-            f"Fact rows: "
-            f"{fact_count:,}"
-        )
+        print(f"Fact rows: {fact_count:,}")
 
-        print(
-            f"Distinct items: "
-            f"{distinct_items:,}"
-        )
+        print(f"Distinct items: {distinct_items:,}")
 
-        print(
-            f"Duplicate order_item_sk: "
-            f"{duplicate_target_sk:,}"
-        )
+        print(f"Duplicate order_item_sk: {duplicate_target_sk:,}")
 
-        print(
-            f"Null product_sk: "
-            f"{null_products:,}"
-        )
+        print(f"Null product_sk: {null_products:,}")
 
-        print(
-            f"Null order_sk: "
-            f"{null_orders:,}"
-        )
+        print(f"Null order_sk: {null_orders:,}")
 
         print()
         print("PRODUCT RESOLUTION")
 
-        (
-            fact_df
-            .groupBy(
-                "product_resolution"
-            )
-            .count()
-            .show(
-                truncate=False
-            )
-        )
+        (fact_df.groupBy("product_resolution").count().show(truncate=False))
 
         if (
-            fact_count
-            ==
-            distinct_items
-            and
-            duplicate_target_sk
-            ==
-            0
-            and
-            null_products
-            ==
-            0
-            and
-            null_orders
-            ==
-            0
+            fact_count == distinct_items
+            and duplicate_target_sk == 0
+            and null_products == 0
+            and null_orders == 0
         ):
-
             print()
-            print(
-                "[PASS] FACT_ORDER_ITEM "
-                "LOAD COMPLETED"
-            )
+            print("[PASS] FACT_ORDER_ITEM LOAD COMPLETED")
 
         else:
-
             print()
-            print(
-                "[FAIL] FACT_ORDER_ITEM "
-                "AUDIT FAILED"
-            )
+            print("[FAIL] FACT_ORDER_ITEM AUDIT FAILED")
 
-            raise RuntimeError(
-                "FACT_ORDER_ITEM audit failed."
-            )
+            raise RuntimeError("FACT_ORDER_ITEM audit failed.")
 
         source_df.unpersist()
 
     finally:
-
         spark.stop()
 
 

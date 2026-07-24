@@ -1,6 +1,6 @@
 import argparse
-import os
 import json
+import os
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, struct, to_json
@@ -13,11 +13,7 @@ def build_spark() -> SparkSession:
     """
     Create a Spark session configured for reading files from MinIO.
     """
-    spark = (
-        SparkSession.builder
-        .appName("inspect-bronze-samples")
-        .getOrCreate()
-    )
+    spark = SparkSession.builder.appName("inspect-bronze-samples").getOrCreate()
 
     configure_minio_storage(spark)
 
@@ -45,14 +41,10 @@ def order_latest_first(df: DataFrame) -> DataFrame:
     Sort records by Kafka timestamp or ingestion timestamp when available.
     """
     if "kafka_timestamp" in df.columns:
-        return df.orderBy(
-            col("kafka_timestamp").desc()
-        )
+        return df.orderBy(col("kafka_timestamp").desc())
 
     if "ingested_at" in df.columns:
-        return df.orderBy(
-            col("ingested_at").desc()
-        )
+        return df.orderBy(col("ingested_at").desc())
 
     return df
 
@@ -76,10 +68,7 @@ def print_topic_sample(
     try:
         df = spark.read.parquet(path)
     except Exception as exc:
-        print(
-            f"[ERROR] Could not read Bronze output "
-            f"for topic '{topic}'."
-        )
+        print(f"[ERROR] Could not read Bronze output for topic '{topic}'.")
         print(f"Reason: {exc}")
         return
 
@@ -87,10 +76,7 @@ def print_topic_sample(
     print("-" * 100)
     df.printSchema()
 
-    sample_df = (
-        order_latest_first(df)
-        .limit(limit)
-    )
+    sample_df = order_latest_first(df).limit(limit)
 
     sample_count = sample_df.count()
 
@@ -99,18 +85,14 @@ def print_topic_sample(
     print(f"Records displayed: {sample_count}")
 
     if sample_count == 0:
-        print(
-            "[WARN] No records found for this topic."
-        )
+        print("[WARN] No records found for this topic.")
         return
 
     if topic == "behavioral.events":
         json_df = sample_df.select(
             to_json(
                 struct(
-                    col("timestamp").alias(
-                        "event_timestamp"
-                    ),
+                    col("timestamp").alias("event_timestamp"),
                     col("user_id"),
                     col("event_type"),
                     col("device"),
@@ -130,9 +112,7 @@ def print_topic_sample(
             print(f"RECORD {index}")
             print("-" * 100)
 
-            parsed = json.loads(
-                row.event_json
-            )
+            parsed = json.loads(row.event_json)
 
             print(
                 json.dumps(
@@ -153,20 +133,14 @@ def print_topic_sample(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description=(
-            "Read Bronze Parquet output from MinIO "
-            "and display sample records."
-        )
+        description=("Read Bronze Parquet output from MinIO and display sample records.")
     )
 
     parser.add_argument(
         "--topic",
         default="all",
         choices=["all", *BUSINESS_TOPICS],
-        help=(
-            "Topic to inspect. "
-            "Use 'all' to inspect every configured topic."
-        ),
+        help=("Topic to inspect. Use 'all' to inspect every configured topic."),
     )
 
     parser.add_argument(
@@ -184,11 +158,7 @@ def main() -> None:
     spark = build_spark()
 
     try:
-        topics = (
-            BUSINESS_TOPICS
-            if args.topic == "all"
-            else (args.topic,)
-        )
+        topics = BUSINESS_TOPICS if args.topic == "all" else (args.topic,)
 
         for topic in topics:
             print_topic_sample(

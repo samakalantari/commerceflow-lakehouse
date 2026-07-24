@@ -35,12 +35,8 @@ def test_read_kafka_stream_rejects_empty_topic():
         )
 
 
-@patch(
-    "spark_apps.bronze.sources.kafka_source.current_timestamp"
-)
-@patch(
-    "spark_apps.bronze.sources.kafka_source.col"
-)
+@patch("spark_apps.bronze.sources.kafka_source.current_timestamp")
+@patch("spark_apps.bronze.sources.kafka_source.col")
 def test_read_kafka_stream_configures_kafka_reader(
     mock_col,
     mock_current_timestamp,
@@ -112,12 +108,8 @@ def test_read_kafka_stream_configures_kafka_reader(
     assert result is selected_df
 
 
-@patch(
-    "spark_apps.bronze.sources.kafka_source.current_timestamp"
-)
-@patch(
-    "spark_apps.bronze.sources.kafka_source.col"
-)
+@patch("spark_apps.bronze.sources.kafka_source.current_timestamp")
+@patch("spark_apps.bronze.sources.kafka_source.col")
 def test_read_kafka_stream_omits_max_offsets_when_none(
     mock_col,
     mock_current_timestamp,
@@ -149,12 +141,6 @@ def test_read_kafka_stream_omits_max_offsets_when_none(
         max_offsets_per_trigger=None,
     )
 
-    configured_options = [
-        call.args
-        for call in reader.option.call_args_list
-    ]
+    configured_options = [call.args for call in reader.option.call_args_list]
 
-    assert not any(
-        option_name == "maxOffsetsPerTrigger"
-        for option_name, _ in configured_options
-    )
+    assert not any(option_name == "maxOffsetsPerTrigger" for option_name, _ in configured_options)

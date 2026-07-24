@@ -20,9 +20,7 @@ def configure_minio_storage(spark: SparkSession) -> None:
 
     if missing_variables:
         missing = ", ".join(missing_variables)
-        raise RuntimeError(
-            f"Missing MinIO environment variables: {missing}"
-        )
+        raise RuntimeError(f"Missing MinIO environment variables: {missing}")
 
     hadoop_conf = spark.sparkContext._jsc.hadoopConfiguration()
 

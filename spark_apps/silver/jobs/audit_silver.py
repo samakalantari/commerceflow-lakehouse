@@ -18,15 +18,7 @@ def count_duplicates(
     df: DataFrame,
     key: str,
 ) -> int:
-    return (
-        df
-        .groupBy(key)
-        .count()
-        .filter(
-            F.col("count") > 1
-        )
-        .count()
-    )
+    return df.groupBy(key).count().filter(F.col("count") > 1).count()
 
 
 def print_check(
@@ -36,52 +28,31 @@ def print_check(
 ) -> bool:
     passed = value == expected
 
-    status = (
-        "PASS"
-        if passed
-        else "FAIL"
-    )
+    status = "PASS" if passed else "FAIL"
 
-    print(
-        f"[{status}] "
-        f"{name}: "
-        f"{value:,}"
-    )
+    print(f"[{status}] {name}: {value:,}")
 
     return passed
 
 
 def main() -> None:
 
-    spark = build_iceberg_spark(
-        "audit-silver-layer"
-    )
+    spark = build_iceberg_spark("audit-silver-layer")
 
     try:
-
         print("=" * 110)
         print("SILVER LAYER END-TO-END AUDIT")
         print("=" * 110)
 
-        dim_date = spark.table(
-            DIM_DATE
-        )
+        dim_date = spark.table(DIM_DATE)
 
-        dim_user = spark.table(
-            DIM_USER
-        )
+        dim_user = spark.table(DIM_USER)
 
-        dim_product = spark.table(
-            DIM_PRODUCT
-        )
+        dim_product = spark.table(DIM_PRODUCT)
 
-        fact_order = spark.table(
-            FACT_ORDER
-        )
+        fact_order = spark.table(FACT_ORDER)
 
-        fact_order_item = spark.table(
-            FACT_ORDER_ITEM
-        )
+        fact_order_item = spark.table(FACT_ORDER_ITEM)
 
         all_passed = True
 
@@ -93,20 +64,13 @@ def main() -> None:
         print("DIM_DATE")
         print("-" * 110)
 
-        dim_date_count = (
-            dim_date.count()
-        )
+        dim_date_count = dim_date.count()
 
-        print(
-            f"Rows: "
-            f"{dim_date_count:,}"
-        )
+        print(f"Rows: {dim_date_count:,}")
 
-        duplicate_date_sk = (
-            count_duplicates(
-                dim_date,
-                "date_sk",
-            )
+        duplicate_date_sk = count_duplicates(
+            dim_date,
+            "date_sk",
         )
 
         all_passed &= print_check(
@@ -114,15 +78,7 @@ def main() -> None:
             duplicate_date_sk,
         )
 
-        null_date_sk = (
-            dim_date
-            .filter(
-                F.col(
-                    "date_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        null_date_sk = dim_date.filter(F.col("date_sk").isNull()).count()
 
         all_passed &= print_check(
             "Null date_sk",
@@ -137,20 +93,13 @@ def main() -> None:
         print("DIM_USER")
         print("-" * 110)
 
-        dim_user_count = (
-            dim_user.count()
-        )
+        dim_user_count = dim_user.count()
 
-        print(
-            f"Rows: "
-            f"{dim_user_count:,}"
-        )
+        print(f"Rows: {dim_user_count:,}")
 
-        duplicate_user_id = (
-            count_duplicates(
-                dim_user,
-                "user_id",
-            )
+        duplicate_user_id = count_duplicates(
+            dim_user,
+            "user_id",
         )
 
         all_passed &= print_check(
@@ -158,11 +107,9 @@ def main() -> None:
             duplicate_user_id,
         )
 
-        duplicate_user_sk = (
-            count_duplicates(
-                dim_user,
-                "user_sk",
-            )
+        duplicate_user_sk = count_duplicates(
+            dim_user,
+            "user_sk",
         )
 
         all_passed &= print_check(
@@ -170,15 +117,7 @@ def main() -> None:
             duplicate_user_sk,
         )
 
-        null_user_sk = (
-            dim_user
-            .filter(
-                F.col(
-                    "user_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        null_user_sk = dim_user.filter(F.col("user_sk").isNull()).count()
 
         all_passed &= print_check(
             "Null user_sk",
@@ -193,34 +132,17 @@ def main() -> None:
         print("DIM_PRODUCT SCD TYPE 2")
         print("-" * 110)
 
-        dim_product_count = (
-            dim_product.count()
-        )
+        dim_product_count = dim_product.count()
 
-        distinct_products = (
-            dim_product
-            .select(
-                "product_id"
-            )
-            .distinct()
-            .count()
-        )
+        distinct_products = dim_product.select("product_id").distinct().count()
 
-        print(
-            f"Rows: "
-            f"{dim_product_count:,}"
-        )
+        print(f"Rows: {dim_product_count:,}")
 
-        print(
-            f"Distinct products: "
-            f"{distinct_products:,}"
-        )
+        print(f"Distinct products: {distinct_products:,}")
 
-        duplicate_product_sk = (
-            count_duplicates(
-                dim_product,
-                "product_sk",
-            )
+        duplicate_product_sk = count_duplicates(
+            dim_product,
+            "product_sk",
         )
 
         all_passed &= print_check(
@@ -228,15 +150,7 @@ def main() -> None:
             duplicate_product_sk,
         )
 
-        null_product_sk = (
-            dim_product
-            .filter(
-                F.col(
-                    "product_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        null_product_sk = dim_product.filter(F.col("product_sk").isNull()).count()
 
         all_passed &= print_check(
             "Null product_sk",
@@ -246,29 +160,16 @@ def main() -> None:
         # Exactly one current version per product
 
         invalid_current_count = (
-            dim_product
-            .groupBy(
-                "product_id"
-            )
+            dim_product.groupBy("product_id")
             .agg(
                 F.sum(
                     F.when(
-                        F.col(
-                            "is_current"
-                        ),
+                        F.col("is_current"),
                         1,
-                    ).otherwise(
-                        0
-                    )
-                ).alias(
-                    "current_count"
-                )
+                    ).otherwise(0)
+                ).alias("current_count")
             )
-            .filter(
-                F.col(
-                    "current_count"
-                ) != 1
-            )
+            .filter(F.col("current_count") != 1)
             .count()
         )
 
@@ -279,19 +180,9 @@ def main() -> None:
 
         # Current rows must have effective_to = NULL
 
-        invalid_current_effective_to = (
-            dim_product
-            .filter(
-                F.col(
-                    "is_current"
-                )
-                &
-                F.col(
-                    "effective_to"
-                ).isNotNull()
-            )
-            .count()
-        )
+        invalid_current_effective_to = dim_product.filter(
+            F.col("is_current") & F.col("effective_to").isNotNull()
+        ).count()
 
         all_passed &= print_check(
             "Current rows with non-null effective_to",
@@ -300,19 +191,9 @@ def main() -> None:
 
         # Historical rows must have effective_to
 
-        invalid_historical_effective_to = (
-            dim_product
-            .filter(
-                ~F.col(
-                    "is_current"
-                )
-                &
-                F.col(
-                    "effective_to"
-                ).isNull()
-            )
-            .count()
-        )
+        invalid_historical_effective_to = dim_product.filter(
+            ~F.col("is_current") & F.col("effective_to").isNull()
+        ).count()
 
         all_passed &= print_check(
             "Historical rows with null effective_to",
@@ -321,51 +202,18 @@ def main() -> None:
 
         # Check SCD2 interval overlap
 
-        product_window = (
-            Window
-            .partitionBy(
-                "product_id"
-            )
-            .orderBy(
-                "effective_from"
-            )
+        product_window = Window.partitionBy("product_id").orderBy("effective_from")
+
+        scd_intervals = dim_product.withColumn(
+            "next_effective_from",
+            F.lead("effective_from").over(product_window),
         )
 
-        scd_intervals = (
-            dim_product
-            .withColumn(
-                "next_effective_from",
-                F.lead(
-                    "effective_from"
-                ).over(
-                    product_window
-                ),
-            )
-        )
-
-        overlapping_intervals = (
-            scd_intervals
-            .filter(
-                F.col(
-                    "next_effective_from"
-                ).isNotNull()
-                &
-                F.col(
-                    "effective_to"
-                ).isNotNull()
-                &
-                (
-                    F.col(
-                        "effective_to"
-                    )
-                    >
-                    F.col(
-                        "next_effective_from"
-                    )
-                )
-            )
-            .count()
-        )
+        overlapping_intervals = scd_intervals.filter(
+            F.col("next_effective_from").isNotNull()
+            & F.col("effective_to").isNotNull()
+            & (F.col("effective_to") > F.col("next_effective_from"))
+        ).count()
 
         all_passed &= print_check(
             "Overlapping SCD2 intervals",
@@ -380,20 +228,13 @@ def main() -> None:
         print("FACT_ORDER")
         print("-" * 110)
 
-        fact_order_count = (
-            fact_order.count()
-        )
+        fact_order_count = fact_order.count()
 
-        print(
-            f"Rows: "
-            f"{fact_order_count:,}"
-        )
+        print(f"Rows: {fact_order_count:,}")
 
-        duplicate_order_id = (
-            count_duplicates(
-                fact_order,
-                "order_id",
-            )
+        duplicate_order_id = count_duplicates(
+            fact_order,
+            "order_id",
         )
 
         all_passed &= print_check(
@@ -401,30 +242,14 @@ def main() -> None:
             duplicate_order_id,
         )
 
-        null_fact_user = (
-            fact_order
-            .filter(
-                F.col(
-                    "user_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        null_fact_user = fact_order.filter(F.col("user_sk").isNull()).count()
 
         all_passed &= print_check(
             "Null user_sk in fact_order",
             null_fact_user,
         )
 
-        null_order_date = (
-            fact_order
-            .filter(
-                F.col(
-                    "order_date_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        null_order_date = fact_order.filter(F.col("order_date_sk").isNull()).count()
 
         all_passed &= print_check(
             "Null order_date_sk in fact_order",
@@ -437,13 +262,7 @@ def main() -> None:
             fact_order.alias("f")
             .join(
                 dim_user.alias("d"),
-                F.col(
-                    "f.user_sk"
-                )
-                ==
-                F.col(
-                    "d.user_sk"
-                ),
+                F.col("f.user_sk") == F.col("d.user_sk"),
                 how="left_anti",
             )
             .count()
@@ -460,13 +279,7 @@ def main() -> None:
             fact_order.alias("f")
             .join(
                 dim_date.alias("d"),
-                F.col(
-                    "f.order_date_sk"
-                )
-                ==
-                F.col(
-                    "d.date_sk"
-                ),
+                F.col("f.order_date_sk") == F.col("d.date_sk"),
                 how="left_anti",
             )
             .count()
@@ -485,20 +298,13 @@ def main() -> None:
         print("FACT_ORDER_ITEM")
         print("-" * 110)
 
-        fact_item_count = (
-            fact_order_item.count()
-        )
+        fact_item_count = fact_order_item.count()
 
-        print(
-            f"Rows: "
-            f"{fact_item_count:,}"
-        )
+        print(f"Rows: {fact_item_count:,}")
 
-        duplicate_item_id = (
-            count_duplicates(
-                fact_order_item,
-                "order_item_id",
-            )
+        duplicate_item_id = count_duplicates(
+            fact_order_item,
+            "order_item_id",
         )
 
         all_passed &= print_check(
@@ -506,30 +312,14 @@ def main() -> None:
             duplicate_item_id,
         )
 
-        null_item_order = (
-            fact_order_item
-            .filter(
-                F.col(
-                    "order_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        null_item_order = fact_order_item.filter(F.col("order_sk").isNull()).count()
 
         all_passed &= print_check(
             "Null order_sk in fact_order_item",
             null_item_order,
         )
 
-        null_item_product = (
-            fact_order_item
-            .filter(
-                F.col(
-                    "product_sk"
-                ).isNull()
-            )
-            .count()
-        )
+        null_item_product = fact_order_item.filter(F.col("product_sk").isNull()).count()
 
         all_passed &= print_check(
             "Null product_sk in fact_order_item",
@@ -542,13 +332,7 @@ def main() -> None:
             fact_order_item.alias("i")
             .join(
                 fact_order.alias("o"),
-                F.col(
-                    "i.order_sk"
-                )
-                ==
-                F.col(
-                    "o.order_sk"
-                ),
+                F.col("i.order_sk") == F.col("o.order_sk"),
                 how="left_anti",
             )
             .count()
@@ -565,13 +349,7 @@ def main() -> None:
             fact_order_item.alias("i")
             .join(
                 dim_product.alias("p"),
-                F.col(
-                    "i.product_sk"
-                )
-                ==
-                F.col(
-                    "p.product_sk"
-                ),
+                F.col("i.product_sk") == F.col("p.product_sk"),
                 how="left_anti",
             )
             .count()
@@ -588,13 +366,7 @@ def main() -> None:
             fact_order_item.alias("i")
             .join(
                 dim_date.alias("d"),
-                F.col(
-                    "i.order_date_sk"
-                )
-                ==
-                F.col(
-                    "d.date_sk"
-                ),
+                F.col("i.order_date_sk") == F.col("d.date_sk"),
                 how="left_anti",
             )
             .count()
@@ -614,19 +386,10 @@ def main() -> None:
         print("-" * 110)
 
         (
-            fact_order_item
-            .groupBy(
-                "product_resolution"
-            )
+            fact_order_item.groupBy("product_resolution")
             .count()
-            .orderBy(
-                F.col(
-                    "count"
-                ).desc()
-            )
-            .show(
-                truncate=False
-            )
+            .orderBy(F.col("count").desc())
+            .show(truncate=False)
         )
 
         # =====================================================
@@ -646,21 +409,14 @@ def main() -> None:
         )
 
         for table in tables:
-
-            snapshot_count = (
-                spark.sql(
-                    f"""
+            snapshot_count = spark.sql(
+                f"""
                     SELECT *
                     FROM {table}.snapshots
                     """
-                )
-                .count()
-            )
+            ).count()
 
-            print(
-                f"{table}: "
-                f"{snapshot_count:,} snapshots"
-            )
+            print(f"{table}: {snapshot_count:,} snapshots")
 
         # =====================================================
         # FINAL RESULT
@@ -670,34 +426,20 @@ def main() -> None:
         print("=" * 110)
 
         if all_passed:
+            print("ALL SILVER QUALITY CHECKS PASSED")
 
-            print(
-                "ALL SILVER QUALITY CHECKS PASSED"
-            )
-
-            print(
-                "Transactional Silver Layer "
-                "is healthy."
-            )
+            print("Transactional Silver Layer is healthy.")
 
         else:
+            print("SILVER QUALITY CHECKS FAILED")
 
-            print(
-                "SILVER QUALITY CHECKS FAILED"
-            )
+            print("Review the FAIL checks above.")
 
-            print(
-                "Review the FAIL checks above."
-            )
-
-            raise RuntimeError(
-                "Silver audit failed."
-            )
+            raise RuntimeError("Silver audit failed.")
 
         print("=" * 110)
 
     finally:
-
         spark.stop()
 
 

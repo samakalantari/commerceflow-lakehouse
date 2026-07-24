@@ -26,41 +26,20 @@ def build_fact_order_source(
     # ---------------------------------------------------------
 
     normalized_orders = (
-        orders_df
-        .filter(
-            F.col("order_id").isNotNull()
-        )
-        .filter(
-            F.col("user_id").isNotNull()
-        )
-        .filter(
-            F.col("timestamp").isNotNull()
-        )
-        .filter(
-            F.col("total").isNotNull()
-        )
+        orders_df.filter(F.col("order_id").isNotNull())
+        .filter(F.col("user_id").isNotNull())
+        .filter(F.col("timestamp").isNotNull())
+        .filter(F.col("total").isNotNull())
         .withColumn(
             "order_id",
-            F.trim(
-                F.col("order_id")
-            ),
+            F.trim(F.col("order_id")),
         )
         .withColumn(
             "user_id",
-            F.trim(
-                F.col("user_id")
-            ),
+            F.trim(F.col("user_id")),
         )
-        .filter(
-            F.length(
-                F.col("order_id")
-            ) > 0
-        )
-        .filter(
-            F.length(
-                F.col("user_id")
-            ) > 0
-        )
+        .filter(F.length(F.col("order_id")) > 0)
+        .filter(F.length(F.col("user_id")) > 0)
     )
 
     # ---------------------------------------------------------
@@ -70,77 +49,27 @@ def build_fact_order_source(
     # order. Keep only the latest version per order_id.
     # ---------------------------------------------------------
 
-    latest_order_window = (
-        Window
-        .partitionBy(
-            "order_id"
-        )
-        .orderBy(
-            F.col(
-                "kafka_timestamp"
-            ).desc(),
-            F.col(
-                "kafka_partition"
-            ).desc(),
-            F.col(
-                "kafka_offset"
-            ).desc(),
-        )
+    latest_order_window = Window.partitionBy("order_id").orderBy(
+        F.col("kafka_timestamp").desc(),
+        F.col("kafka_partition").desc(),
+        F.col("kafka_offset").desc(),
     )
 
     cleaned_orders = (
-        normalized_orders
-        .withColumn(
+        normalized_orders.withColumn(
             "_row_number",
-            F.row_number().over(
-                latest_order_window
-            ),
+            F.row_number().over(latest_order_window),
         )
-        .filter(
-            F.col(
-                "_row_number"
-            ) == 1
-        )
-        .drop(
-            "_row_number"
-        )
+        .filter(F.col("_row_number") == 1)
+        .drop("_row_number")
         .select(
             "order_id",
             "user_id",
-
-            F.col(
-                "timestamp"
-            ).alias(
-                "order_timestamp"
-            ),
-
-            F.col(
-                "total"
-            ).alias(
-                "order_total"
-            ),
-
-            F.trim(
-                F.col(
-                    "status"
-                )
-            ).alias(
-                "status"
-            ),
-
-            F.trim(
-                F.col(
-                    "payment_method"
-                )
-            ).alias(
-                "payment_method"
-            ),
-
-            F.col(
-                "kafka_timestamp"
-            ).alias(
-                "source_kafka_timestamp"
-            ),
+            F.col("timestamp").alias("order_timestamp"),
+            F.col("total").alias("order_total"),
+            F.trim(F.col("status")).alias("status"),
+            F.trim(F.col("payment_method")).alias("payment_method"),
+            F.col("kafka_timestamp").alias("source_kafka_timestamp"),
         )
     )
 
@@ -155,83 +84,27 @@ def build_fact_order_source(
         cleaned_orders.alias("o")
         .join(
             dim_user_df.alias("u"),
-            F.col(
-                "o.user_id"
-            )
-            ==
-            F.col(
-                "u.user_id"
-            ),
+            F.col("o.user_id") == F.col("u.user_id"),
             how="left",
         )
         .select(
-            F.xxhash64(
-                F.col(
-                    "o.order_id"
-                )
-            ).alias(
-                "order_sk"
-            ),
-
-            F.col(
-                "o.order_id"
-            ).alias(
-                "order_id"
-            ),
-
+            F.xxhash64(F.col("o.order_id")).alias("order_sk"),
+            F.col("o.order_id").alias("order_id"),
             F.coalesce(
-                F.col(
-                    "u.user_sk"
-                ),
-                F.lit(
-                    -1
-                ).cast(
-                    "bigint"
-                ),
-            ).alias(
-                "user_sk"
-            ),
-
+                F.col("u.user_sk"),
+                F.lit(-1).cast("bigint"),
+            ).alias("user_sk"),
             F.date_format(
-                F.col(
-                    "o.order_timestamp"
-                ),
+                F.col("o.order_timestamp"),
                 "yyyyMMdd",
-            ).cast(
-                "int"
-            ).alias(
-                "order_date_sk"
-            ),
-
-            F.col(
-                "o.order_timestamp"
-            ).alias(
-                "order_timestamp"
-            ),
-
-            F.col(
-                "o.order_total"
-            ).alias(
-                "order_total"
-            ),
-
-            F.col(
-                "o.status"
-            ).alias(
-                "status"
-            ),
-
-            F.col(
-                "o.payment_method"
-            ).alias(
-                "payment_method"
-            ),
-
-            F.col(
-                "o.source_kafka_timestamp"
-            ).alias(
-                "source_kafka_timestamp"
-            ),
+            )
+            .cast("int")
+            .alias("order_date_sk"),
+            F.col("o.order_timestamp").alias("order_timestamp"),
+            F.col("o.order_total").alias("order_total"),
+            F.col("o.status").alias("status"),
+            F.col("o.payment_method").alias("payment_method"),
+            F.col("o.source_kafka_timestamp").alias("source_kafka_timestamp"),
         )
     )
 

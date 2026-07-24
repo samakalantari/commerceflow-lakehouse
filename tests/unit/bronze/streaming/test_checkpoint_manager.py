@@ -29,25 +29,19 @@ def test_normalize_name_returns_safe_lowercase_name(
 
 
 def test_normalize_name_replaces_repeated_special_characters_once():
-    result = normalize_name(
-        "transactional...orders///stream"
-    )
+    result = normalize_name("transactional...orders///stream")
 
     assert result == "transactional_orders_stream"
 
 
 def test_normalize_name_removes_leading_and_trailing_underscores():
-    result = normalize_name(
-        "///transactional.orders///"
-    )
+    result = normalize_name("///transactional.orders///")
 
     assert result == "transactional_orders"
 
 
 def test_normalize_name_preserves_hyphens_and_underscores():
-    result = normalize_name(
-        "Debug_Query-v2"
-    )
+    result = normalize_name("Debug_Query-v2")
 
     assert result == "debug_query-v2"
 
@@ -60,31 +54,19 @@ def test_build_checkpoint_path_builds_expected_path():
         version="v1",
     )
 
-    assert result == (
-        "/opt/spark-data/checkpoints/"
-        "debug-console/"
-        "transactional_orders/"
-        "v1"
-    )
+    assert result == ("/opt/spark-data/checkpoints/debug-console/transactional_orders/v1")
 
 
 def test_build_checkpoint_path_supports_s3a_base_path():
     result = build_checkpoint_path(
-        base_path=(
-            "s3a://commerceflow-lakehouse/"
-            "checkpoints/bronze"
-        ),
+        base_path=("s3a://commerceflow-lakehouse/checkpoints/bronze"),
         topic="behavioral.events",
         query_name="bronze-writer",
         version="v2",
     )
 
     assert result == (
-        "s3a://commerceflow-lakehouse/"
-        "checkpoints/bronze/"
-        "bronze-writer/"
-        "behavioral_events/"
-        "v2"
+        "s3a://commerceflow-lakehouse/checkpoints/bronze/bronze-writer/behavioral_events/v2"
     )
 
 
@@ -96,12 +78,7 @@ def test_build_checkpoint_path_removes_trailing_base_slash():
         version="v1",
     )
 
-    assert result == (
-        "/opt/spark-data/checkpoints/"
-        "bronze/"
-        "transactional_orders/"
-        "v1"
-    )
+    assert result == ("/opt/spark-data/checkpoints/bronze/transactional_orders/v1")
 
 
 def test_build_checkpoint_path_normalizes_all_path_segments():
@@ -112,12 +89,7 @@ def test_build_checkpoint_path_normalizes_all_path_segments():
         version="Version 2",
     )
 
-    assert result == (
-        "/checkpoints/"
-        "bronze_writer/"
-        "transactional_orders/"
-        "version_2"
-    )
+    assert result == ("/checkpoints/bronze_writer/transactional_orders/version_2")
 
 
 def test_build_checkpoint_path_uses_v1_by_default():
@@ -127,12 +99,7 @@ def test_build_checkpoint_path_uses_v1_by_default():
         query_name="bronze",
     )
 
-    assert result == (
-        "/checkpoints/"
-        "bronze/"
-        "transactional_orders/"
-        "v1"
-    )
+    assert result == ("/checkpoints/bronze/transactional_orders/v1")
 
 
 @pytest.mark.parametrize(

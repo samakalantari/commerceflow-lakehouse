@@ -29,11 +29,7 @@ from spark_apps.bronze.transforms.timestamp_transform import (
 def build_spark(
     app_name: str = "bronze-topic-job",
 ) -> SparkSession:
-    spark = (
-        SparkSession.builder
-        .appName(app_name)
-        .getOrCreate()
-    )
+    spark = SparkSession.builder.appName(app_name).getOrCreate()
 
     configure_minio_storage(spark)
 
@@ -55,13 +51,9 @@ def build_stream(
     """
     validate_topic(topic)
 
-    bootstrap_servers = os.environ[
-        "KAFKA_BOOTSTRAP_SERVERS"
-    ]
+    bootstrap_servers = os.environ["KAFKA_BOOTSTRAP_SERVERS"]
 
-    checkpoint_base = os.environ[
-        "BRONZE_CHECKPOINT_BASE"
-    ]
+    checkpoint_base = os.environ["BRONZE_CHECKPOINT_BASE"]
 
     raw_stream = read_kafka_stream(
         spark=spark,
@@ -76,25 +68,18 @@ def build_stream(
     )
 
     if decoded is None:
-        print(
-            f"[WARN] No schema found for topic "
-            f"'{topic}', skipping."
-        )
+        print(f"[WARN] No schema found for topic '{topic}', skipping.")
 
         return None
 
-    transformed = (
-        group_behavioral_event_fields(
-            decoded,
-            topic,
-        )
+    transformed = group_behavioral_event_fields(
+        decoded,
+        topic,
     )
 
-    prepared_for_write = (
-        add_time_partitions(
-            transformed,
-            topic,
-        )
+    prepared_for_write = add_time_partitions(
+        transformed,
+        topic,
     )
 
     query = write_bronze_stream(
@@ -103,16 +88,9 @@ def build_stream(
         checkpoint_base=checkpoint_base,
     )
 
-    checkpoint = (
-        f"{checkpoint_base.rstrip('/')}/"
-        f"{topic.replace('.', '/')}"
-    )
+    checkpoint = f"{checkpoint_base.rstrip('/')}/{topic.replace('.', '/')}"
 
-    print(
-        f"[INFO] Started Bronze stream "
-        f"for topic '{topic}' "
-        f"with checkpoint '{checkpoint}'."
-    )
+    print(f"[INFO] Started Bronze stream for topic '{topic}' with checkpoint '{checkpoint}'.")
 
     return query
 
@@ -130,21 +108,13 @@ def main() -> None:
             )
 
             if query is not None:
-                active_queries.append(
-                    query
-                )
+                active_queries.append(query)
 
         except Exception as exc:
-            print(
-                f"[ERROR] Failed to start "
-                f"stream for topic '{topic}': "
-                f"{exc}"
-            )
+            print(f"[ERROR] Failed to start stream for topic '{topic}': {exc}")
 
     if not active_queries:
-        raise RuntimeError(
-            "No Bronze streams were started successfully."
-        )
+        raise RuntimeError("No Bronze streams were started successfully.")
 
     spark.streams.awaitAnyTermination()
 

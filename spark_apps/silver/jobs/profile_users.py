@@ -10,7 +10,6 @@ from spark_apps.silver.config.tables import (
     TOPIC_USERS,
 )
 
-
 BUSINESS_COLUMNS = [
     "user_id",
     "username",
@@ -23,9 +22,7 @@ BUSINESS_COLUMNS = [
 
 
 def main() -> None:
-    spark = build_iceberg_spark(
-        "profile-silver-users"
-    )
+    spark = build_iceberg_spark("profile-silver-users")
 
     try:
         df = read_bronze_topic(
@@ -39,10 +36,7 @@ def main() -> None:
 
         total_count = df.count()
 
-        print(
-            f"Total Bronze records: "
-            f"{total_count:,}"
-        )
+        print(f"Total Bronze records: {total_count:,}")
 
         # -------------------------------------------------
         # Null counts
@@ -61,31 +55,17 @@ def main() -> None:
                 ).alias(column)
                 for column in BUSINESS_COLUMNS
             ]
-        ).show(
-            truncate=False
-        )
+        ).show(truncate=False)
 
         # -------------------------------------------------
         # Distinct users
         # -------------------------------------------------
 
-        distinct_users = (
-            df.select(
-                "user_id"
-            )
-            .distinct()
-            .count()
-        )
+        distinct_users = df.select("user_id").distinct().count()
 
-        print(
-            f"\nDistinct user_id: "
-            f"{distinct_users:,}"
-        )
+        print(f"\nDistinct user_id: {distinct_users:,}")
 
-        print(
-            f"Potential duplicate rows: "
-            f"{total_count - distinct_users:,}"
-        )
+        print(f"Potential duplicate rows: {total_count - distinct_users:,}")
 
         # -------------------------------------------------
         # Duplicate user versions
@@ -95,17 +75,10 @@ def main() -> None:
         print("-" * 100)
 
         (
-            df
-            .groupBy(
-                "user_id"
-            )
+            df.groupBy("user_id")
             .count()
-            .filter(
-                F.col("count") > 1
-            )
-            .orderBy(
-                F.col("count").desc()
-            )
+            .filter(F.col("count") > 1)
+            .orderBy(F.col("count").desc())
             .show(
                 20,
                 truncate=False,
@@ -119,19 +92,7 @@ def main() -> None:
         print("\nLOYALTY TIER VALUES")
         print("-" * 100)
 
-        (
-            df
-            .groupBy(
-                "loyalty_tier"
-            )
-            .count()
-            .orderBy(
-                F.col("count").desc()
-            )
-            .show(
-                truncate=False
-            )
-        )
+        (df.groupBy("loyalty_tier").count().orderBy(F.col("count").desc()).show(truncate=False))
 
         # -------------------------------------------------
         # Devices
@@ -140,62 +101,28 @@ def main() -> None:
         print("\nDEVICE VALUES")
         print("-" * 100)
 
-        (
-            df
-            .groupBy(
-                "device"
-            )
-            .count()
-            .orderBy(
-                F.col("count").desc()
-            )
-            .show(
-                truncate=False
-            )
-        )
+        (df.groupBy("device").count().orderBy(F.col("count").desc()).show(truncate=False))
 
         # -------------------------------------------------
         # Invalid emails
         # -------------------------------------------------
 
-        invalid_email_count = (
-            df
-            .filter(
-                F.col("email").isNotNull()
-                & ~F.col("email").rlike(
-                    r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
-                )
-            )
-            .count()
-        )
+        invalid_email_count = df.filter(
+            F.col("email").isNotNull() & ~F.col("email").rlike(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+        ).count()
 
-        print(
-            f"\nInvalid email format: "
-            f"{invalid_email_count:,}"
-        )
+        print(f"\nInvalid email format: {invalid_email_count:,}")
 
         # -------------------------------------------------
         # Future signup dates
         # -------------------------------------------------
 
-        future_signup_count = (
-            df
-            .filter(
-                F.col("signup_date")
-                > F.current_date()
-            )
-            .count()
-        )
+        future_signup_count = df.filter(F.col("signup_date") > F.current_date()).count()
 
-        print(
-            f"Future signup dates: "
-            f"{future_signup_count:,}"
-        )
+        print(f"Future signup dates: {future_signup_count:,}")
 
         print()
-        print(
-            "[PASS] USER PROFILING COMPLETED"
-        )
+        print("[PASS] USER PROFILING COMPLETED")
 
     finally:
         spark.stop()

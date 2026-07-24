@@ -2,8 +2,7 @@ import base64
 import urllib.error
 import urllib.request
 
-from pyspark.sql import DataFrame
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
 
 from spark_apps.gold.config.clickhouse import (
     CLICKHOUSE_DRIVER,
@@ -22,12 +21,7 @@ def execute_clickhouse(
     through the HTTP interface.
     """
 
-    token = base64.b64encode(
-        (
-            f"{CLICKHOUSE_USER}:"
-            f"{CLICKHOUSE_PASSWORD}"
-        ).encode()
-    ).decode()
+    token = base64.b64encode((f"{CLICKHOUSE_USER}:{CLICKHOUSE_PASSWORD}").encode()).decode()
 
     request = urllib.request.Request(
         CLICKHOUSE_HTTP_URL,
@@ -50,27 +44,12 @@ def execute_clickhouse(
             request,
             timeout=120,
         ) as response:
-
-            return (
-                response
-                .read()
-                .decode()
-            )
+            return response.read().decode()
 
     except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode(errors="replace")
 
-        error_body = (
-            exc
-            .read()
-            .decode(
-                errors="replace"
-            )
-        )
-
-        raise RuntimeError(
-            "ClickHouse HTTP query failed:\n"
-            f"{error_body}"
-        ) from exc
+        raise RuntimeError(f"ClickHouse HTTP query failed:\n{error_body}") from exc
 
 
 def write_clickhouse(
@@ -83,14 +62,8 @@ def write_clickhouse(
     """
 
     (
-        df
-        .coalesce(
-            2
-        )
-        .write
-        .format(
-            "jdbc"
-        )
+        df.coalesce(2)
+        .write.format("jdbc")
         .option(
             "driver",
             CLICKHOUSE_DRIVER,
@@ -111,9 +84,7 @@ def write_clickhouse(
             "dbtable",
             table,
         )
-        .mode(
-            "append"
-        )
+        .mode("append")
         .save()
     )
 
@@ -123,10 +94,7 @@ def read_clickhouse_table(
     table: str,
 ) -> DataFrame:
     return (
-        spark.read
-        .format(
-            "jdbc"
-        )
+        spark.read.format("jdbc")
         .option(
             "driver",
             CLICKHOUSE_DRIVER,

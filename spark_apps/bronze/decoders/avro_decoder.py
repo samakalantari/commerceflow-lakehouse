@@ -1,7 +1,8 @@
-import requests
 from functools import lru_cache
-from pyspark.sql.functions import col, expr
+
+import requests
 from pyspark.sql.avro.functions import from_avro
+from pyspark.sql.functions import col, expr
 
 SCHEMA_REGISTRY_URL = "http://185.255.90.14:8081"
 
@@ -37,7 +38,7 @@ def decode(df, topic: str, payload_column: str = "value"):
             "not found in DataFrame. "
             f"Available columns: {df.columns}"
         )
-    
+
     avro_schema = _fetch_schema(topic)
 
     if avro_schema is None:

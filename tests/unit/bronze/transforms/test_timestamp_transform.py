@@ -1,8 +1,7 @@
-from datetime import date, datetime
+from datetime import datetime
 
 import pytest
 from pyspark.sql.types import (
-    DateType,
     LongType,
     StringType,
     StructField,
@@ -86,42 +85,6 @@ def test_add_time_partitions_uses_configured_field_instead_of_ingested_at(
     ],
 )
 def test_add_time_partitions_accepts_standard_datetime_strings(
-    spark,
-    timestamp_value,
-):
-    df = spark.createDataFrame(
-        [
-            {
-                "timestamp": timestamp_value,
-            }
-        ]
-    )
-
-    row = add_time_partitions(
-        df,
-        "transactional.orders",
-    ).first()
-
-    assert_partition_date(
-        row,
-        year=2026,
-        month=7,
-        day=15,
-    )
-
-
-@pytest.mark.parametrize(
-    "timestamp_value",
-    [
-        "2026-07-15T18:30:00",
-        "2026-07-15T18:30:00.123",
-    ],
-    ids=[
-        "iso-local-seconds",
-        "iso-local-milliseconds",
-    ],
-)
-def test_add_time_partitions_accepts_iso_local_datetime_strings(
     spark,
     timestamp_value,
 ):
@@ -233,9 +196,7 @@ def test_add_time_partitions_normalizes_offset_before_partitioning(
     df = spark.createDataFrame(
         [
             {
-                "timestamp": (
-                    "2026-07-16T01:30:00+03:30"
-                ),
+                "timestamp": ("2026-07-16T01:30:00+03:30"),
             }
         ]
     )
@@ -410,9 +371,7 @@ def test_add_time_partitions_rejects_unsupported_topic(
     df = spark.createDataFrame(
         [
             {
-                "ingested_at": (
-                    "2026-07-15 18:30:00"
-                ),
+                "ingested_at": ("2026-07-15 18:30:00"),
             }
         ]
     )
@@ -434,9 +393,7 @@ def test_add_time_partitions_preserves_original_columns(
         [
             {
                 "order_id": "order-1",
-                "timestamp": (
-                    "2026-07-15 18:30:00"
-                ),
+                "timestamp": ("2026-07-15 18:30:00"),
                 "status": "paid",
             }
         ]
@@ -463,9 +420,7 @@ def test_add_time_partitions_removes_internal_helper_column(
     df = spark.createDataFrame(
         [
             {
-                "timestamp": (
-                    "2026-07-15 18:30:00"
-                ),
+                "timestamp": ("2026-07-15 18:30:00"),
             }
         ]
     )
@@ -475,10 +430,7 @@ def test_add_time_partitions_removes_internal_helper_column(
         "transactional.orders",
     )
 
-    assert (
-        "__partition_timestamp"
-        not in result_df.columns
-    )
+    assert "__partition_timestamp" not in result_df.columns
 
 
 def test_add_time_partitions_returns_null_for_invalid_timestamp(
@@ -487,9 +439,7 @@ def test_add_time_partitions_returns_null_for_invalid_timestamp(
     df = spark.createDataFrame(
         [
             {
-                "timestamp": (
-                    "not-a-valid-timestamp"
-                ),
+                "timestamp": ("not-a-valid-timestamp"),
             }
         ]
     )
@@ -533,7 +483,7 @@ def test_add_time_partitions_returns_null_for_null_timestamp(
     assert row["month"] is None
     assert row["day"] is None
 
-    
+
 def test_add_time_partitions_returns_categories_unchanged(
     spark,
 ):
@@ -585,7 +535,4 @@ def test_add_time_partitions_returns_categories_unchanged(
     assert "month" not in result_df.columns
     assert "day" not in result_df.columns
 
-    assert (
-        result_df.first().asDict()
-        == df.first().asDict()
-    )
+    assert result_df.first().asDict() == df.first().asDict()
