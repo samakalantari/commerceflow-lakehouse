@@ -6,7 +6,7 @@ from pyspark.sql.window import Window
 def build_dim_product_source(
     products_df: DataFrame,
     price_history_df: DataFrame,
-) -> DataFrame:
+) -> tuple[DataFrame, DataFrame]:
     """
     Build canonical Product SCD Type 2 source.
 
@@ -17,28 +17,48 @@ def build_dim_product_source(
       - the latest snapshot price differs from
         the latest price-history price
     """
+    
+    # ---------------------------------------------------------
+    # 1. Normalize product snapshots
+    # ---------------------------------------------------------
+
+    normalized_products = (
+        products_df
+        .withColumn(
+            "product_id",
+            F.trim(F.col("product_id")),
+        )
+        .withColumn(
+            "product_name",
+            F.trim(F.col("name")),
+        )
+    )
 
     # ---------------------------------------------------------
-    # 1. Latest product snapshot
+    # 2. Keep latest product snapshot
     # ---------------------------------------------------------
 
     product_window = Window.partitionBy("product_id").orderBy(
-        F.col("kafka_timestamp").desc(),
-        F.col("kafka_partition").desc(),
-        F.col("kafka_offset").desc(),
+        F.col("kafka_timestamp").desc_nulls_last(),
+        F.col("kafka_partition").desc_nulls_last(),
+        F.col("kafka_offset").desc_nulls_last(),
     )
 
     latest_products = (
-        products_df.withColumn(
+        normalized_products
+        .withColumn(
             "_rn",
             F.row_number().over(product_window),
         )
         .filter(F.col("_rn") == 1)
+        .drop("_rn")
         .select(
-            F.trim(F.col("product_id")).alias("product_id"),
-            F.trim(F.col("name")).alias("product_name"),
+            "product_id",
+            "product_name",
             F.col("price").alias("snapshot_price"),
             F.col("kafka_timestamp").alias("snapshot_timestamp"),
+            "kafka_partition",
+            "kafka_offset",
         )
     )
 
