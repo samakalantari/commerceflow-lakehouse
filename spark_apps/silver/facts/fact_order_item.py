@@ -2,7 +2,6 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
-
 UNKNOWN_PRODUCT_SK = 0
 
 
@@ -144,24 +143,20 @@ def build_fact_order_item_source(
     # 5. Resolve final product surrogate key
     # ---------------------------------------------------------
 
-    resolved = (
-        temporal_matches
-        .withColumn(
-            "product_sk",
-            F.coalesce(
-                F.col("temporal_product_sk"),
-                F.lit(UNKNOWN_PRODUCT_SK).cast("long"),
-            ),
-        )
-        .withColumn(
-            "product_resolution",
-            F.when(
-                F.col("temporal_product_sk").isNotNull(),
-                F.lit("temporal"),
-            ).otherwise(
-                F.lit("unknown_product"),
-            ),
-        )
+    resolved = temporal_matches.withColumn(
+        "product_sk",
+        F.coalesce(
+            F.col("temporal_product_sk"),
+            F.lit(UNKNOWN_PRODUCT_SK).cast("long"),
+        ),
+    ).withColumn(
+        "product_resolution",
+        F.when(
+            F.col("temporal_product_sk").isNotNull(),
+            F.lit("temporal"),
+        ).otherwise(
+            F.lit("unknown_product"),
+        ),
     )
 
     # ---------------------------------------------------------
@@ -169,11 +164,7 @@ def build_fact_order_item_source(
     # ---------------------------------------------------------
 
     return resolved.select(
-        F.xxhash64(
-            F.col("order_item_id")
-        ).alias(
-            "order_item_sk"
-        ),
+        F.xxhash64(F.col("order_item_id")).alias("order_item_sk"),
         F.col("order_item_id"),
         F.col("order_sk"),
         F.col("order_id"),

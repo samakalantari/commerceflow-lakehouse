@@ -22,7 +22,7 @@ def build_dim_user_source(
         valid_df
         invalid_df
     """
-    
+
     # ---------------------------------------------------------
     # 1. Basic cleansing / normalization
     # ---------------------------------------------------------
@@ -43,8 +43,7 @@ def build_dim_user_source(
         .withColumn(
             "device",
             F.when(
-                F.col("device").isNull()
-                | (F.length(F.trim(F.col("device"))) == 0),
+                F.col("device").isNull() | (F.length(F.trim(F.col("device"))) == 0),
                 F.lit("Unknown"),
             ).otherwise(
                 F.trim(F.col("device")),
@@ -59,20 +58,17 @@ def build_dim_user_source(
             F.trim(F.col("location")),
         )
     )
-    
-    
+
     # ---------------------------------------------------------
     # 2. Deduplicate valid business keys
     # ---------------------------------------------------------
 
     identified_users = df.filter(
-        F.col("user_id").isNotNull()
-        & (F.length(F.trim(F.col("user_id"))) > 0)
+        F.col("user_id").isNotNull() & (F.length(F.trim(F.col("user_id"))) > 0)
     )
 
     unidentified_users = df.filter(
-        F.col("user_id").isNull()
-        | (F.length(F.trim(F.col("user_id"))) == 0)
+        F.col("user_id").isNull() | (F.length(F.trim(F.col("user_id"))) == 0)
     )
 
     window = Window.partitionBy("user_id").orderBy(
@@ -90,10 +86,8 @@ def build_dim_user_source(
         .drop("_row_number")
     )
 
-    df = deduplicated_users.unionByName(
-        unidentified_users
-    )
-        
+    df = deduplicated_users.unionByName(unidentified_users)
+
     # ---------------------------------------------------------
     # 3. Data quality rules
     # ---------------------------------------------------------
@@ -117,7 +111,10 @@ def build_dim_user_source(
                 F.lit("missing_email"),
             ),
             F.when(
-                F.col("email").isNotNull() & (F.length(F.col("email")) > 0) & (F.length(F.col("email")) > 0) & ~F.col("email").rlike(email_pattern),
+                F.col("email").isNotNull()
+                & (F.length(F.col("email")) > 0)
+                & (F.length(F.col("email")) > 0)
+                & ~F.col("email").rlike(email_pattern),
                 F.lit("invalid_email"),
             ),
             F.when(

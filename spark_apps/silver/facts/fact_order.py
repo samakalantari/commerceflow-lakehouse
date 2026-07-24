@@ -63,22 +63,18 @@ def build_fact_order_source(
     # =========================================================
 
     identified_orders = normalized_orders.filter(
-        F.col("order_id").isNotNull()
-        & (F.length(F.col("order_id")) > 0)
+        F.col("order_id").isNotNull() & (F.length(F.col("order_id")) > 0)
     )
 
     unidentified_orders = normalized_orders.filter(
-        F.col("order_id").isNull()
-        | (F.length(F.col("order_id")) == 0)
+        F.col("order_id").isNull() | (F.length(F.col("order_id")) == 0)
     )
 
     # =========================================================
     # 3. Keep the latest Kafka version per identified order
     # =========================================================
 
-    latest_order_window = Window.partitionBy(
-        "order_id"
-    ).orderBy(
+    latest_order_window = Window.partitionBy("order_id").orderBy(
         F.col("kafka_timestamp").desc_nulls_last(),
         F.col("kafka_partition").desc_nulls_last(),
         F.col("kafka_offset").desc_nulls_last(),
@@ -89,12 +85,8 @@ def build_fact_order_source(
             "_row_number",
             F.row_number().over(latest_order_window),
         )
-        .filter(
-            F.col("_row_number") == 1
-        )
-        .drop(
-            "_row_number"
-        )
+        .filter(F.col("_row_number") == 1)
+        .drop("_row_number")
     )
 
     # Preserve every record without order_id so each invalid
@@ -113,13 +105,11 @@ def build_fact_order_source(
         F.concat_ws(
             "; ",
             F.when(
-                F.col("order_id").isNull()
-                | (F.length(F.col("order_id")) == 0),
+                F.col("order_id").isNull() | (F.length(F.col("order_id")) == 0),
                 F.lit("missing_order_id"),
             ),
             F.when(
-                F.col("user_id").isNull()
-                | (F.length(F.col("user_id")) == 0),
+                F.col("user_id").isNull() | (F.length(F.col("user_id")) == 0),
                 F.lit("missing_user_id"),
             ),
             F.when(
@@ -127,11 +117,7 @@ def build_fact_order_source(
                 F.lit("missing_order_timestamp"),
             ),
             F.when(
-                F.col("timestamp").isNotNull()
-                & (
-                    F.col("timestamp")
-                    > F.current_timestamp()
-                ),
+                F.col("timestamp").isNotNull() & (F.col("timestamp") > F.current_timestamp()),
                 F.lit("future_order_timestamp"),
             ),
             F.when(
@@ -139,18 +125,15 @@ def build_fact_order_source(
                 F.lit("missing_order_total"),
             ),
             F.when(
-                F.col("total").isNotNull()
-                & (F.col("total") < 0),
+                F.col("total").isNotNull() & (F.col("total") < 0),
                 F.lit("negative_order_total"),
             ),
             F.when(
-                F.col("status").isNull()
-                | (F.length(F.col("status")) == 0),
+                F.col("status").isNull() | (F.length(F.col("status")) == 0),
                 F.lit("missing_order_status"),
             ),
             F.when(
-                F.col("payment_method").isNull()
-                | (F.length(F.col("payment_method")) == 0),
+                F.col("payment_method").isNull() | (F.length(F.col("payment_method")) == 0),
                 F.lit("missing_payment_method"),
             ),
             F.when(
@@ -164,18 +147,11 @@ def build_fact_order_source(
     # 5. Split valid and invalid source orders
     # =========================================================
 
-    valid_orders = validated_orders.filter(
-        F.col("_dq_error_reason") == ""
-    )
+    valid_orders = validated_orders.filter(F.col("_dq_error_reason") == "")
 
-    invalid_df = (
-        validated_orders.filter(
-            F.col("_dq_error_reason") != ""
-        )
-        .withColumn(
-            "_dq_source_entity",
-            F.lit("order"),
-        )
+    invalid_df = validated_orders.filter(F.col("_dq_error_reason") != "").withColumn(
+        "_dq_source_entity",
+        F.lit("order"),
     )
 
     # =========================================================
@@ -185,17 +161,11 @@ def build_fact_order_source(
     canonical_orders = valid_orders.select(
         "order_id",
         "user_id",
-        F.col("timestamp").alias(
-            "order_timestamp"
-        ),
-        F.col("total").alias(
-            "order_total"
-        ),
+        F.col("timestamp").alias("order_timestamp"),
+        F.col("total").alias("order_total"),
         "status",
         "payment_method",
-        F.col("kafka_timestamp").alias(
-            "source_kafka_timestamp"
-        ),
+        F.col("kafka_timestamp").alias("source_kafka_timestamp"),
     )
 
     # =========================================================
@@ -213,60 +183,27 @@ def build_fact_order_source(
                 "user_id",
                 "user_sk",
             ).alias("user"),
-            F.col("order.user_id")
-            == F.col("user.user_id"),
+            F.col("order.user_id") == F.col("user.user_id"),
             how="left",
         )
         .select(
-            F.xxhash64(
-                F.col("order.order_id")
-            ).alias(
-                "order_sk"
-            ),
-            F.col(
-                "order.order_id"
-            ).alias(
-                "order_id"
-            ),
+            F.xxhash64(F.col("order.order_id")).alias("order_sk"),
+            F.col("order.order_id").alias("order_id"),
             F.coalesce(
                 F.col("user.user_sk"),
                 F.lit(-1).cast("bigint"),
-            ).alias(
-                "user_sk"
-            ),
+            ).alias("user_sk"),
             F.date_format(
                 F.col("order.order_timestamp"),
                 "yyyyMMdd",
             )
             .cast("int")
-            .alias(
-                "order_date_sk"
-            ),
-            F.col(
-                "order.order_timestamp"
-            ).alias(
-                "order_timestamp"
-            ),
-            F.col(
-                "order.order_total"
-            ).alias(
-                "order_total"
-            ),
-            F.col(
-                "order.status"
-            ).alias(
-                "status"
-            ),
-            F.col(
-                "order.payment_method"
-            ).alias(
-                "payment_method"
-            ),
-            F.col(
-                "order.source_kafka_timestamp"
-            ).alias(
-                "source_kafka_timestamp"
-            ),
+            .alias("order_date_sk"),
+            F.col("order.order_timestamp").alias("order_timestamp"),
+            F.col("order.order_total").alias("order_total"),
+            F.col("order.status").alias("status"),
+            F.col("order.payment_method").alias("payment_method"),
+            F.col("order.source_kafka_timestamp").alias("source_kafka_timestamp"),
         )
     )
 

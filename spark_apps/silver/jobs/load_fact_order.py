@@ -44,9 +44,9 @@ def main() -> None:
             orders_df,
             dim_user_df,
         )
-        
+
         source_df = source_df.cache()
-        
+
         source_count = source_df.count()
 
         source_distinct_orders = source_df.select("order_id").distinct().count()
