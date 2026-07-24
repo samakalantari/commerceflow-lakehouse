@@ -43,11 +43,13 @@ def main() -> None:
         # 2. Build canonical source
         # -----------------------------------------------------
 
-        source_df = build_fact_order_item_source(
+        source_df, invalid_df = build_fact_order_item_source(
             items_df,
             fact_order_df,
             dim_product_df,
-        ).cache()
+        )
+
+        source_df = source_df.cache()
 
         source_count = source_df.count()
 
