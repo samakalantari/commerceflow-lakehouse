@@ -155,7 +155,7 @@ def build_dim_user_source(
         F.col("kafka_timestamp").alias("source_kafka_timestamp"),
     )
 
-invalid_df = (
+    invalid_df = (
         df.filter(F.col("_dq_error_reason") != "")
         .withColumn(
             "_dq_quarantine_id",
