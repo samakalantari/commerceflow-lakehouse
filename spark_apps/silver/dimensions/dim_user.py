@@ -22,34 +22,13 @@ def build_dim_user_source(
         valid_df
         invalid_df
     """
-
+    
     # ---------------------------------------------------------
-    # 1. Deduplicate by business key
-    #
-    # Keep the latest Kafka version of each user.
+    # 1. Basic cleansing / normalization
     # ---------------------------------------------------------
-
-    window = Window.partitionBy("user_id").orderBy(
-        F.col("kafka_timestamp").desc(),
-        F.col("kafka_partition").desc(),
-        F.col("kafka_offset").desc(),
-    )
 
     df = (
         bronze_df.withColumn(
-            "_row_number",
-            F.row_number().over(window),
-        )
-        .filter(F.col("_row_number") == 1)
-        .drop("_row_number")
-    )
-
-    # ---------------------------------------------------------
-    # 2. Basic cleansing / normalization
-    # ---------------------------------------------------------
-
-    df = (
-        df.withColumn(
             "user_id",
             F.trim(F.col("user_id")),
         )
@@ -80,7 +59,41 @@ def build_dim_user_source(
             F.trim(F.col("location")),
         )
     )
+    
+    
+    # ---------------------------------------------------------
+    # 2. Deduplicate valid business keys
+    # ---------------------------------------------------------
 
+    identified_users = df.filter(
+        F.col("user_id").isNotNull()
+        & (F.length(F.trim(F.col("user_id"))) > 0)
+    )
+
+    unidentified_users = df.filter(
+        F.col("user_id").isNull()
+        | (F.length(F.trim(F.col("user_id"))) == 0)
+    )
+
+    window = Window.partitionBy("user_id").orderBy(
+        F.col("kafka_timestamp").desc_nulls_last(),
+        F.col("kafka_partition").desc_nulls_last(),
+        F.col("kafka_offset").desc_nulls_last(),
+    )
+
+    deduplicated_users = (
+        identified_users.withColumn(
+            "_row_number",
+            F.row_number().over(window),
+        )
+        .filter(F.col("_row_number") == 1)
+        .drop("_row_number")
+    )
+
+    df = deduplicated_users.unionByName(
+        unidentified_users
+    )
+        
     # ---------------------------------------------------------
     # 3. Data quality rules
     # ---------------------------------------------------------
@@ -104,7 +117,7 @@ def build_dim_user_source(
                 F.lit("missing_email"),
             ),
             F.when(
-                F.col("email").isNotNull() & (F.length(F.col("email")) > 0) & ~F.col("email").rlike(email_pattern),
+                F.col("email").isNotNull() & (F.length(F.col("email")) > 0) & (F.length(F.col("email")) > 0) & ~F.col("email").rlike(email_pattern),
                 F.lit("invalid_email"),
             ),
             F.when(
@@ -122,6 +135,10 @@ def build_dim_user_source(
             F.when(
                 F.col("location").isNull() | (F.length(F.col("location")) == 0),
                 F.lit("missing_location"),
+            ),
+            F.when(
+                F.col("kafka_timestamp").isNull(),
+                F.lit("missing_kafka_timestamp"),
             ),
         ),
     )
