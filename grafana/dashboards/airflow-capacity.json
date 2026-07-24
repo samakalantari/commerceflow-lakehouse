@@ -1,0 +1,28 @@
+{
+  "uid": "airflow-capacity",
+  "title": "Airflow Capacity",
+  "tags": ["airflow", "capacity"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Executor Open Slots",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_executor_open_slots",
+          "legendFormat": "open slots",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

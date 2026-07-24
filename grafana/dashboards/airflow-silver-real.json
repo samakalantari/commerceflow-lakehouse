@@ -1,0 +1,323 @@
+{
+  "uid": "airflow-silver-real",
+  "title": "Airflow Silver ETL (Real Metrics)",
+  "tags": ["airflow", "silver", "etl"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Scheduler Heartbeat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_scheduler_heartbeat",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Executor Open Slots",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_executor_open_slots",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Executor Running Tasks",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_executor_running_tasks",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Executor Queued Tasks",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_executor_queued_tasks",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Behavioral DAG Success Duration",
+      "gridPos": { "x": 0, "y": 5, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_dagrun_duration_success_behavioral_silver_etl",
+          "refId": "A",
+          "legendFormat": "behavioral success duration"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Behavioral DAG Failed Duration",
+      "gridPos": { "x": 12, "y": 5, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_dagrun_duration_failed_behavioral_silver_etl",
+          "refId": "A",
+          "legendFormat": "behavioral failed duration"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Transactional DAG Success Duration",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_dagrun_duration_success_silver_transactional_etl",
+          "refId": "A",
+          "legendFormat": "transactional success duration"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Transactional DAG Failed Duration",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_dagrun_duration_failed_silver_transactional_etl",
+          "refId": "A",
+          "legendFormat": "transactional failed duration"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Behavioral Schedule Delay",
+      "gridPos": { "x": 0, "y": 21, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_dagrun_schedule_delay_behavioral_silver_etl",
+          "refId": "A",
+          "legendFormat": "behavioral schedule delay"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Transactional Schedule Delay",
+      "gridPos": { "x": 12, "y": 21, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_dagrun_schedule_delay_silver_transactional_etl",
+          "refId": "A",
+          "legendFormat": "transactional schedule delay"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Behavioral Task Success",
+      "gridPos": { "x": 0, "y": 29, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_ti_finish_behavioral_silver_etl_load_fact_behavioral_event_success",
+          "refId": "A",
+          "legendFormat": "behavioral task success"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Behavioral Task Failed",
+      "gridPos": { "x": 12, "y": 29, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_ti_finish_behavioral_silver_etl_load_fact_behavioral_event_failed",
+          "refId": "A",
+          "legendFormat": "behavioral task failed"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Transactional Task Starts",
+      "gridPos": { "x": 0, "y": 37, "w": 24, "h": 10 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_ti_start_silver_transactional_etl_bootstrap_silver",
+          "refId": "A",
+          "legendFormat": "bootstrap_silver"
+        },
+        {
+          "expr": "airflow_ti_start_silver_transactional_etl_load_dim_date",
+          "refId": "B",
+          "legendFormat": "load_dim_date"
+        },
+        {
+          "expr": "airflow_ti_start_silver_transactional_etl_load_dim_user",
+          "refId": "C",
+          "legendFormat": "load_dim_user"
+        },
+        {
+          "expr": "airflow_ti_start_silver_transactional_etl_load_dim_product",
+          "refId": "D",
+          "legendFormat": "load_dim_product"
+        },
+        {
+          "expr": "airflow_ti_start_silver_transactional_etl_load_fact_order",
+          "refId": "E",
+          "legendFormat": "load_fact_order"
+        },
+        {
+          "expr": "airflow_ti_start_silver_transactional_etl_load_fact_order_item",
+          "refId": "F",
+          "legendFormat": "load_fact_order_item"
+        },
+        {
+          "expr": "airflow_ti_start_silver_transactional_etl_audit_silver",
+          "refId": "G",
+          "legendFormat": "audit_silver"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Transactional Task Successes",
+      "gridPos": { "x": 0, "y": 47, "w": 24, "h": 10 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_bootstrap_silver_success",
+          "refId": "A",
+          "legendFormat": "bootstrap_silver"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_load_dim_date_success",
+          "refId": "B",
+          "legendFormat": "load_dim_date"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_load_dim_user_success",
+          "refId": "C",
+          "legendFormat": "load_dim_user"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_load_dim_product_success",
+          "refId": "D",
+          "legendFormat": "load_dim_product"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_load_fact_order_success",
+          "refId": "E",
+          "legendFormat": "load_fact_order"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_load_fact_order_item_success",
+          "refId": "F",
+          "legendFormat": "load_fact_order_item"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_audit_silver_success",
+          "refId": "G",
+          "legendFormat": "audit_silver"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Transactional Task Failures",
+      "gridPos": { "x": 0, "y": 57, "w": 24, "h": 10 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_bootstrap_silver_failed",
+          "refId": "A",
+          "legendFormat": "bootstrap_silver"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_load_dim_date_failed",
+          "refId": "B",
+          "legendFormat": "load_dim_date"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_load_dim_user_failed",
+          "refId": "C",
+          "legendFormat": "load_dim_user"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_load_dim_product_failed",
+          "refId": "D",
+          "legendFormat": "load_dim_product"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_load_fact_order_failed",
+          "refId": "E",
+          "legendFormat": "load_fact_order"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_load_fact_order_item_failed",
+          "refId": "F",
+          "legendFormat": "load_fact_order_item"
+        },
+        {
+          "expr": "airflow_ti_finish_silver_transactional_etl_audit_silver_failed",
+          "refId": "G",
+          "legendFormat": "audit_silver"
+        }
+      ]
+    }
+  ]
+}

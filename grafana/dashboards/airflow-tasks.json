@@ -1,0 +1,41 @@
+{
+  "uid": "airflow-tasks",
+  "title": "Airflow Tasks",
+  "tags": ["airflow", "tasks"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Task Successes",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "rate(airflow_ti_successes[5m])",
+          "legendFormat": "success/min",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Task Failures",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "rate(airflow_ti_failures[5m])",
+          "legendFormat": "failure/min",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}
