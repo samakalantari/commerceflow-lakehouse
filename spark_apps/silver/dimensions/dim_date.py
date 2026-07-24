@@ -10,12 +10,10 @@ def build_dim_date(
     end_date: str = "2030-12-31",
 ) -> DataFrame:
     """
-    Build a date dimension with one row per calendar date.
+    Build a Kimball-style date dimension.
 
-    Notes:
-        - date_sk uses YYYYMMDD format.
-        - day_of_week follows Spark numbering:
-          1 = Sunday and 7 = Saturday.
+    Grain:
+        One row per calendar date.
     """
 
     start = date.fromisoformat(start_date)
@@ -28,7 +26,7 @@ def build_dim_date(
 
     total_days = (end - start).days + 1
 
-    dates = spark.range(total_days).select(
+    df = spark.range(total_days).select(
         F.date_add(
             F.to_date(F.lit(start_date)),
             F.col("id").cast("int"),
