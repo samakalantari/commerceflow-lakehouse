@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from pyspark.sql import Row
+from pyspark.sql import functions as F
 from pyspark.sql.types import (
     IntegerType,
     StringType,
@@ -10,8 +11,32 @@ from pyspark.sql.types import (
 )
 
 from spark_apps.silver.dimensions.dim_product import (
+    UNKNOWN_PRODUCT_ID,
+    UNKNOWN_PRODUCT_SK,
+    add_unknown_product_member,
     build_dim_product_source,
 )
+
+
+def test_add_unknown_product_member(spark):
+    source_df = spark.createDataFrame(
+        [],
+        """
+        product_sk long, product_id string, product_name string,
+        price decimal(10,2), effective_from timestamp, effective_to timestamp,
+        is_current boolean, record_hash string, source_kind string,
+        source_kafka_timestamp timestamp
+        """,
+    )
+
+    result = add_unknown_product_member(source_df)
+    unknown = result.filter(F.col("product_sk") == UNKNOWN_PRODUCT_SK).first()
+
+    assert result.count() == 1
+    assert unknown.product_id == UNKNOWN_PRODUCT_ID
+    assert unknown.product_name == "Unknown Product"
+    assert unknown.is_current is True
+    assert unknown.source_kind == "system"
 
 
 def test_build_dim_product_creates_scd2_history(spark):

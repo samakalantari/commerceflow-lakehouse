@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
-UNKNOWN_PRODUCT_SK = 0
+from spark_apps.silver.dimensions.dim_product import UNKNOWN_PRODUCT_SK
 AMOUNT_TOLERANCE = 0.01
 
 

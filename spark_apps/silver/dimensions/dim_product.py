@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
@@ -9,6 +11,26 @@ from spark_apps.silver.config.tables import (
 
 
 PRICE_TYPE = "decimal(10,2)"
+UNKNOWN_PRODUCT_SK = 0
+UNKNOWN_PRODUCT_ID = "__UNKNOWN__"
+
+
+def add_unknown_product_member(source_df: DataFrame) -> DataFrame:
+    """Add the system member referenced by unresolved order items."""
+    unknown_df = source_df.sparkSession.range(1).select(
+        F.lit(UNKNOWN_PRODUCT_SK).cast("long").alias("product_sk"),
+        F.lit(UNKNOWN_PRODUCT_ID).alias("product_id"),
+        F.lit("Unknown Product").alias("product_name"),
+        F.lit(None).cast(PRICE_TYPE).alias("price"),
+        F.to_timestamp(F.lit("1970-01-01 00:00:00")).alias("effective_from"),
+        F.lit(None).cast("timestamp").alias("effective_to"),
+        F.lit(True).alias("is_current"),
+        F.sha2(F.lit("unknown_product"), 256).alias("record_hash"),
+        F.lit("system").alias("source_kind"),
+        F.lit(None).cast("timestamp").alias("source_kafka_timestamp"),
+    )
+
+    return source_df.unionByName(unknown_df)
 
 
 def build_dim_product_source(

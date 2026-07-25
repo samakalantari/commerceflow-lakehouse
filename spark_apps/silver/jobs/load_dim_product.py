@@ -14,6 +14,7 @@ from spark_apps.silver.config.tables import (
     TOPIC_PRODUCTS,
 )
 from spark_apps.silver.dimensions.dim_product import (
+    add_unknown_product_member,
     build_dim_product_source,
 )
 from spark_apps.silver.quality.quarantine import (
@@ -52,6 +53,8 @@ def main() -> None:
             products_df,
             history_df,
         )
+
+        source_df = add_unknown_product_member(source_df)
 
         source_df = source_df.cache()
 
