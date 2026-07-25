@@ -10,10 +10,16 @@ from spark_apps.silver.config.tables import (
     DIM_PRODUCT,
     FACT_ORDER,
     FACT_ORDER_ITEM,
+    INVALID_ORDER_ITEMS,
+    QUARANTINE_DATABASE,
     TOPIC_ORDER_ITEMS,
 )
 from spark_apps.silver.facts.fact_order_item import (
     build_fact_order_item_source,
+)
+from spark_apps.silver.quality.quarantine import (
+    prepare_quarantine_records,
+    write_quarantine,
 )
 
 
@@ -61,13 +67,15 @@ def main() -> None:
 
         temporal_count = source_df.filter(F.col("product_resolution") == "temporal").count()
 
-        fallback_count = source_df.filter(
-            F.col("product_resolution") == "earliest_fallback"
+        unknown_product_count = source_df.filter(
+            F.col("product_resolution") == "unknown_product"
         ).count()
 
         missing_product_sk = source_df.filter(F.col("product_sk").isNull()).count()
 
         missing_order_sk = source_df.filter(F.col("order_sk").isNull()).count()
+
+        invalid_count = invalid_df.count()
 
         # -----------------------------------------------------
         # 3. Pre-write source audit
@@ -85,11 +93,13 @@ def main() -> None:
 
         print(f"Temporal matches: {temporal_count:,}")
 
-        print(f"Earliest fallbacks: {fallback_count:,}")
+        print(f"Unknown Product mappings: {unknown_product_count:,}")
 
         print(f"Missing product_sk: {missing_product_sk:,}")
 
         print(f"Missing order_sk: {missing_order_sk:,}")
+
+        print(f"Invalid order items: {invalid_count:,}")
 
         if (
             source_count != source_distinct_items
@@ -102,7 +112,22 @@ def main() -> None:
         print("[PASS] FACT_ORDER_ITEM canonical source audit completed.")
 
         # -----------------------------------------------------
-        # 4. Create Iceberg fact table
+        # 4. Quarantine invalid source order items
+        # -----------------------------------------------------
+
+        spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {QUARANTINE_DATABASE}")
+
+        if invalid_count > 0:
+            quarantine_df = prepare_quarantine_records(
+                invalid_df,
+                entity_name="order_item",
+                source_topic=TOPIC_ORDER_ITEMS,
+            )
+            write_quarantine(quarantine_df, INVALID_ORDER_ITEMS)
+            print(f"[WARN] {invalid_count:,} invalid order items written to quarantine.")
+
+        # -----------------------------------------------------
+        # 5. Create Iceberg fact table
         # -----------------------------------------------------
 
         spark.sql(
@@ -137,7 +162,7 @@ def main() -> None:
         )
 
         # -----------------------------------------------------
-        # 5. Prepare final rows
+        # 6. Prepare final rows
         # -----------------------------------------------------
 
         write_df = (
@@ -177,7 +202,7 @@ def main() -> None:
         )
 
         # -----------------------------------------------------
-        # 6. Full Iceberg overwrite
+        # 7. Full Iceberg overwrite
         #
         # Replace stale or duplicated target rows with the
         # complete canonical source.
@@ -188,7 +213,7 @@ def main() -> None:
         print("[PASS] FACT_ORDER_ITEM FULL OVERWRITE completed.")
 
         # -----------------------------------------------------
-        # 7. Final Audit
+        # 8. Final Audit
         # -----------------------------------------------------
 
         fact_df = spark.table(FACT_ORDER_ITEM)

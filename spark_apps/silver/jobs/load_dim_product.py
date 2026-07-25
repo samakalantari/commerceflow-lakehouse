@@ -9,6 +9,7 @@ from spark_apps.silver.config.iceberg import (
 from spark_apps.silver.config.tables import (
     DIM_PRODUCT,
     INVALID_PRODUCTS,
+    QUARANTINE_DATABASE,
     TOPIC_PRODUCT_PRICE_HISTORY,
     TOPIC_PRODUCTS,
 )
@@ -76,6 +77,8 @@ def main() -> None:
         # -----------------------------------------------------
         # 3. Write invalid records to quarantine
         # -----------------------------------------------------
+
+        spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {QUARANTINE_DATABASE}")
 
         if not invalid_df.isEmpty():
             quarantine_df = prepare_quarantine_records(

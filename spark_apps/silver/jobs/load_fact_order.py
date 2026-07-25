@@ -9,10 +9,16 @@ from spark_apps.silver.config.iceberg import (
 from spark_apps.silver.config.tables import (
     DIM_USER,
     FACT_ORDER,
+    INVALID_ORDERS,
+    QUARANTINE_DATABASE,
     TOPIC_ORDERS,
 )
 from spark_apps.silver.facts.fact_order import (
     build_fact_order_source,
+)
+from spark_apps.silver.quality.quarantine import (
+    prepare_quarantine_records,
+    write_quarantine,
 )
 
 
@@ -59,6 +65,8 @@ def main() -> None:
 
         unknown_user_count = source_df.filter(F.col("user_sk") == -1).count()
 
+        invalid_count = invalid_df.count()
+
         # -----------------------------------------------------
         # 3. Pre-write audit
         # -----------------------------------------------------
@@ -77,6 +85,8 @@ def main() -> None:
 
         print(f"Orders mapped to Unknown User: {unknown_user_count:,}")
 
+        print(f"Invalid orders: {invalid_count:,}")
+
         if (
             source_count != source_distinct_orders
             or source_duplicate_order_sk != 0
@@ -87,7 +97,22 @@ def main() -> None:
         print("[PASS] FACT_ORDER canonical source audit completed.")
 
         # -----------------------------------------------------
-        # 4. Create Iceberg Fact Table
+        # 4. Quarantine invalid source orders
+        # -----------------------------------------------------
+
+        spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {QUARANTINE_DATABASE}")
+
+        if invalid_count > 0:
+            quarantine_df = prepare_quarantine_records(
+                invalid_df,
+                entity_name="order",
+                source_topic=TOPIC_ORDERS,
+            )
+            write_quarantine(quarantine_df, INVALID_ORDERS)
+            print(f"[WARN] {invalid_count:,} invalid orders written to quarantine.")
+
+        # -----------------------------------------------------
+        # 5. Create Iceberg Fact Table
         # -----------------------------------------------------
 
         spark.sql(
@@ -118,7 +143,7 @@ def main() -> None:
         )
 
         # -----------------------------------------------------
-        # 5. Prepare final rows
+        # 6. Prepare final rows
         # -----------------------------------------------------
 
         write_df = (
@@ -150,7 +175,7 @@ def main() -> None:
         )
 
         # -----------------------------------------------------
-        # 6. Full Iceberg overwrite
+        # 7. Full Iceberg overwrite
         #
         # Replace the existing fact table with the complete
         # canonical source to remove stale or duplicate rows.
@@ -161,7 +186,7 @@ def main() -> None:
         print("[PASS] FACT_ORDER FULL OVERWRITE completed.")
 
         # -----------------------------------------------------
-        # 7. Final Audit
+        # 8. Final Audit
         # -----------------------------------------------------
 
         fact_df = spark.table(FACT_ORDER)

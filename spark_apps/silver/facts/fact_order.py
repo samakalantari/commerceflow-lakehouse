@@ -149,9 +149,10 @@ def build_fact_order_source(
 
     valid_orders = validated_orders.filter(F.col("_dq_error_reason") == "")
 
-    invalid_df = validated_orders.filter(F.col("_dq_error_reason") != "").withColumn(
-        "_dq_source_entity",
-        F.lit("order"),
+    invalid_df = (
+        validated_orders.filter(F.col("_dq_error_reason") != "")
+        .withColumn("_dq_entity", F.lit("order"))
+        .withColumn("_dq_source_topic", F.lit("transactional.orders"))
     )
 
     # =========================================================

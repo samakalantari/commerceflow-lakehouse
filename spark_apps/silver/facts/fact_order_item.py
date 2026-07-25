@@ -183,8 +183,12 @@ def build_fact_order_item_source(
             F.col("_dq_error_reason") != ""
         )
         .withColumn(
-            "_dq_source_entity",
+            "_dq_entity",
             F.lit("order_item"),
+        )
+        .withColumn(
+            "_dq_source_topic",
+            F.lit("transactional.order_items"),
         )
     )
 
@@ -286,8 +290,12 @@ def build_fact_order_item_source(
             F.col("_dq_error_reason") != ""
         )
         .withColumn(
-            "_dq_source_entity",
+            "_dq_entity",
             F.lit("order_item"),
+        )
+        .withColumn(
+            "_dq_source_topic",
+            F.lit("transactional.order_items"),
         )
     )
 

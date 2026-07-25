@@ -13,6 +13,10 @@ from spark_apps.silver.config.tables import (
 from spark_apps.silver.dimensions.dim_user import (
     build_dim_user_source,
 )
+from spark_apps.silver.quality.quarantine import (
+    prepare_quarantine_records,
+    write_quarantine,
+)
 
 
 def main() -> None:
@@ -273,15 +277,12 @@ def main() -> None:
         )
 
         if invalid_count > 0:
-            (
-                invalid_df.writeTo(INVALID_USERS)
-                .using("iceberg")
-                .tableProperty(
-                    "format-version",
-                    "2",
-                )
-                .createOrReplace()
+            quarantine_df = prepare_quarantine_records(
+                invalid_df,
+                entity_name="user",
+                source_topic=TOPIC_USERS,
             )
+            write_quarantine(quarantine_df, INVALID_USERS)
 
             print(f"[WARN] {invalid_count:,} invalid users written to quarantine.")
 

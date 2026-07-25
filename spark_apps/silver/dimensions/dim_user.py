@@ -171,48 +171,8 @@ def build_dim_user_source(
 
     invalid_df = (
         df.filter(F.col("_dq_error_reason") != "")
-        .withColumn(
-            "_dq_quarantine_id",
-            F.sha2(
-                F.concat_ws(
-                    "||",
-                    F.lit("transactional.users"),
-                    F.coalesce(
-                        F.col("kafka_partition").cast("string"),
-                        F.lit("unknown_partition"),
-                    ),
-                    F.coalesce(
-                        F.col("kafka_offset").cast("string"),
-                        F.lit("unknown_offset"),
-                    ),
-                    F.coalesce(
-                        F.col("kafka_timestamp").cast("string"),
-                        F.lit("unknown_timestamp"),
-                    ),
-                    F.coalesce(
-                        F.col("user_id"),
-                        F.lit("unknown_user"),
-                    ),
-                ),
-                256,
-            ),
-        )
-        .withColumn(
-            "_dq_entity",
-            F.lit("user"),
-        )
-        .withColumn(
-            "_dq_source_topic",
-            F.lit("transactional.users"),
-        )
-        .withColumn(
-            "_dq_status",
-            F.lit("open"),
-        )
-        .withColumn(
-            "_dq_quarantined_at",
-            F.current_timestamp(),
-        )
+        .withColumn("_dq_entity", F.lit("user"))
+        .withColumn("_dq_source_topic", F.lit("transactional.users"))
     )
     return (
         valid_df,
