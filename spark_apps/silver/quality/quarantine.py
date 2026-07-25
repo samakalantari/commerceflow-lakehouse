@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
@@ -72,6 +74,7 @@ def prepare_quarantine_records(
             "_dq_quarantined_at",
             F.current_timestamp(),
         )
+        .dropDuplicates(["_dq_quarantine_id"])
     )
 
 
