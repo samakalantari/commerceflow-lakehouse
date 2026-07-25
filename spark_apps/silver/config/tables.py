@@ -50,6 +50,8 @@ FACT_ORDER = f"{SILVER_DATABASE}.fact_order"
 
 FACT_ORDER_ITEM = f"{SILVER_DATABASE}.fact_order_item"
 
+FACT_RETURN_REFUND = f"{SILVER_DATABASE}.fact_return_refund"
+
 
 # ---------------------------------------------------------
 # Data quality / quarantine
@@ -66,3 +68,5 @@ INVALID_PRODUCTS = f"{QUARANTINE_DATABASE}.invalid_products"
 INVALID_ORDERS = f"{QUARANTINE_DATABASE}.invalid_orders"
 
 INVALID_ORDER_ITEMS = f"{QUARANTINE_DATABASE}.invalid_order_items"
+
+INVALID_RETURNS_REFUNDS = f"{QUARANTINE_DATABASE}.invalid_returns_refunds"

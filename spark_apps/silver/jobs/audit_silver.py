@@ -11,6 +11,7 @@ from spark_apps.silver.config.tables import (
     DIM_USER,
     FACT_ORDER,
     FACT_ORDER_ITEM,
+    FACT_RETURN_REFUND,
 )
 
 
@@ -53,6 +54,8 @@ def main() -> None:
         fact_order = spark.table(FACT_ORDER)
 
         fact_order_item = spark.table(FACT_ORDER_ITEM)
+
+        fact_return_refund = spark.table(FACT_RETURN_REFUND)
 
         all_passed = True
 
@@ -378,6 +381,62 @@ def main() -> None:
         )
 
         # =====================================================
+        # FACT_RETURN_REFUND
+        # =====================================================
+
+        print()
+        print("FACT_RETURN_REFUND")
+        print("-" * 110)
+
+        return_count = fact_return_refund.count()
+        print(f"Rows: {return_count:,}")
+
+        duplicate_return_ids = count_duplicates(
+            fact_return_refund,
+            "return_refund_id",
+        )
+        all_passed &= print_check(
+            "Duplicate return_refund_id",
+            duplicate_return_ids,
+        )
+
+        null_return_relationships = fact_return_refund.filter(
+            F.col("order_sk").isNull() | F.col("order_item_sk").isNull()
+        ).count()
+        all_passed &= print_check(
+            "Null relationships in fact_return_refund",
+            null_return_relationships,
+        )
+
+        orphan_return_orders = (
+            fact_return_refund.alias("r")
+            .join(
+                fact_order.alias("o"),
+                F.col("r.order_sk") == F.col("o.order_sk"),
+                how="left_anti",
+            )
+            .count()
+        )
+        all_passed &= print_check(
+            "fact_return_refund rows without fact_order",
+            orphan_return_orders,
+        )
+
+        orphan_return_items = (
+            fact_return_refund.alias("r")
+            .join(
+                fact_order_item.alias("i"),
+                F.col("r.order_item_sk") == F.col("i.order_item_sk"),
+                how="left_anti",
+            )
+            .count()
+        )
+        all_passed &= print_check(
+            "fact_return_refund rows without fact_order_item",
+            orphan_return_items,
+        )
+
+        # =====================================================
         # PRODUCT RESOLUTION
         # =====================================================
 
@@ -406,6 +465,7 @@ def main() -> None:
             DIM_PRODUCT,
             FACT_ORDER,
             FACT_ORDER_ITEM,
+            FACT_RETURN_REFUND,
         )
 
         for table in tables:

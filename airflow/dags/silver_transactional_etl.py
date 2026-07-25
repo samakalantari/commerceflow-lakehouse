@@ -256,7 +256,18 @@ with DAG(
     )
 
     # ========================================================
-    # 7. Silver End-to-End Audit
+    # 7. Fact: Return and Refund
+    # ========================================================
+
+    load_fact_return_refund = silver_spark_task(
+        task_id="load_fact_return_refund",
+        application=(
+            "/opt/project/spark_apps/silver/jobs/load_fact_return_refund.py"
+        ),
+    )
+
+    # ========================================================
+    # 8. Silver End-to-End Audit
     #
     # Validates:
     # - dimensions
@@ -284,5 +295,6 @@ with DAG(
         >> load_dim_product
         >> load_fact_order
         >> load_fact_order_item
+        >> load_fact_return_refund
         >> audit_silver
     )
