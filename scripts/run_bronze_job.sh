@@ -42,6 +42,7 @@ docker compose exec \
       --conf spark.pyspark.driver.python=/opt/bitnami/python/bin/python3 \
       --conf spark.executorEnv.PYTHONPATH='${PROJECT_ROOT}' \
       --conf spark.executorEnv.PYTHONDONTWRITEBYTECODE=1 \
+      --conf spark.cores.max=2 \
       --packages '${PACKAGE_LIST}' \
       '${JOB_SCRIPT}'
   "
