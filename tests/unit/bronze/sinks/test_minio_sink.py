@@ -23,6 +23,16 @@ ORDERS_CHECKPOINT_PATH = (
     "checkpoints/bronze/transactional/orders_recovery"
 )
 
+USERS_OUTPUT_PATH = (
+    "s3a://commerceflow-lakehouse/"
+    "bronze/transactional/users_recovery"
+)
+
+USERS_CHECKPOINT_PATH = (
+    "s3a://commerceflow-lakehouse/"
+    "checkpoints/bronze/transactional/users_recovery"
+)
+
 
 def _build_mock_dataframe(
     columns,
@@ -74,6 +84,21 @@ def test_orders_topic_uses_recovery_output_path(
     )
 
     assert result == ORDERS_OUTPUT_PATH
+
+
+def test_users_topic_uses_recovery_output_path(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "BRONZE_KAFKA_BASE_PATH",
+        BRONZE_BASE,
+    )
+
+    result = _topic_to_path(
+        "transactional.users",
+    )
+
+    assert result == USERS_OUTPUT_PATH
 
 
 def test_topic_to_path_removes_trailing_slash(
@@ -146,6 +171,15 @@ def test_orders_topic_uses_recovery_checkpoint_path():
     )
 
     assert result == ORDERS_CHECKPOINT_PATH
+
+
+def test_users_topic_uses_recovery_checkpoint_path():
+    result = _topic_to_checkpoint(
+        checkpoint_base=CHECKPOINT_BASE,
+        topic="transactional.users",
+    )
+
+    assert result == USERS_CHECKPOINT_PATH
 
 
 def test_topic_to_checkpoint_removes_trailing_slash():

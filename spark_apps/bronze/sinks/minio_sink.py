@@ -11,11 +11,13 @@ from spark_apps.bronze.config.topic_metadata import (
 TOPIC_PATH_OVERRIDES = {
     "transactional.orders": "transactional/orders_recovery",
     "transactional.product_price_history": "transactional/product_price_history_recovery",
+    "transactional.users": "transactional/users_recovery",
 }
 
 TOPIC_CHECKPOINT_OVERRIDES = {
     "transactional.orders": "transactional/orders_recovery",
     "transactional.product_price_history": "transactional/product_price_history_recovery",
+    "transactional.users": "transactional/users_recovery",
 }
 
 
