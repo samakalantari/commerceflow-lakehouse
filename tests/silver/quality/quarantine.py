@@ -219,6 +219,12 @@ def test_write_quarantine_appends_non_empty_dataframe(
         "invalid_users"
     )
 
+    monkeypatch.setattr(
+        df.sparkSession.catalog,
+        "tableExists",
+        lambda _: True,
+    )
+
     write_quarantine(
         df=df,
         table_name=table_name,
@@ -235,4 +241,37 @@ def test_write_quarantine_appends_non_empty_dataframe(
         "2",
     )
     writer_mock.append.assert_called_once_with()
+    writer_mock.createOrReplace.assert_not_called()
+
+def test_write_quarantine_creates_missing_table(
+    spark,
+    monkeypatch,
+) -> None:
+    df = spark.createDataFrame(
+        [
+            {
+                "_dq_quarantine_id": "quarantine-1",
+                "_dq_error_reason": "invalid_email",
+            }
+        ]
+    )
+
+    writer_mock = MagicMock()
+    writer_mock.using.return_value = writer_mock
+    writer_mock.tableProperty.return_value = writer_mock
+    write_to_mock = MagicMock(return_value=writer_mock)
+
+    monkeypatch.setattr(df, "writeTo", write_to_mock)
+    monkeypatch.setattr(
+        df.sparkSession.catalog,
+        "tableExists",
+        lambda _: False,
+    )
+
+    table_name = "test_catalog.silver_quarantine.invalid_users"
+    write_quarantine(df=df, table_name=table_name)
+
+    write_to_mock.assert_called_once_with(table_name)
+    writer_mock.create.assert_called_once_with()
+    writer_mock.append.assert_not_called()
     writer_mock.createOrReplace.assert_not_called()

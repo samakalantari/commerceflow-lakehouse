@@ -80,14 +80,18 @@ def write_quarantine(
     table_name: str,
 ) -> None:
     """
-    Append new invalid records to an Iceberg quarantine table.
+    Create an Iceberg quarantine table on first use, then append invalid records.
     """
     if df.isEmpty():
         return
 
-    (
+    writer = (
         df.writeTo(table_name)
         .using("iceberg")
         .tableProperty("format-version", "2")
-        .append()
     )
+
+    if df.sparkSession.catalog.tableExists(table_name):
+        writer.append()
+    else:
+        writer.create()
