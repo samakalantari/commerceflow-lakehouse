@@ -8,11 +8,16 @@ from spark_apps.silver.config.iceberg import (
 )
 from spark_apps.silver.config.tables import (
     DIM_PRODUCT,
+    INVALID_PRODUCTS,
     TOPIC_PRODUCT_PRICE_HISTORY,
     TOPIC_PRODUCTS,
 )
 from spark_apps.silver.dimensions.dim_product import (
     build_dim_product_source,
+)
+from spark_apps.silver.quality.quarantine import (
+    prepare_quarantine_records,
+    write_quarantine,
 )
 
 
@@ -42,25 +47,57 @@ def main() -> None:
         # 2. Build canonical SCD Type 2 source
         # -----------------------------------------------------
 
-        source_df = build_dim_product_source(
+        source_df, invalid_df = build_dim_product_source(
             products_df,
             history_df,
-        ).cache()
+        )
+
+        source_df = source_df.cache()
 
         source_count = source_df.count()
 
-        distinct_products = source_df.select("product_id").distinct().count()
+        distinct_products = (
+            source_df
+            .select("product_id")
+            .distinct()
+            .count()
+        )
 
-        current_count = source_df.filter(F.col("is_current")).count()
+        current_count = (
+            source_df
+            .filter(F.col("is_current"))
+            .count()
+        )
 
         print(f"SCD2 versions: {source_count:,}")
-
         print(f"Distinct products: {distinct_products:,}")
-
         print(f"Current versions: {current_count:,}")
 
         # -----------------------------------------------------
-        # 3. Create DIM_PRODUCT Iceberg table
+        # 3. Write invalid records to quarantine
+        # -----------------------------------------------------
+
+        if not invalid_df.isEmpty():
+            quarantine_df = prepare_quarantine_records(
+                invalid_df,
+                entity_name="product",
+            )
+
+            write_quarantine(
+                quarantine_df,
+                INVALID_PRODUCTS,
+            )
+
+            print(
+                "[PASS] Product invalid records written to quarantine."
+            )
+        else:
+            print(
+                "[PASS] No invalid product records found."
+            )
+
+        # -----------------------------------------------------
+        # 4. Create DIM_PRODUCT Iceberg table
         # -----------------------------------------------------
 
         spark.sql(
@@ -89,10 +126,7 @@ def main() -> None:
         )
 
         # -----------------------------------------------------
-        # 4. Pre-write source audit
-        #
-        # Validate the canonical SCD2 source before replacing
-        # the Iceberg target table.
+        # 5. Source audit
         # -----------------------------------------------------
 
         source_invalid_current = (
@@ -133,13 +167,13 @@ def main() -> None:
             or source_duplicate_product_sk != 0
         ):
             raise RuntimeError(
-                "DIM_PRODUCT canonical source audit failed. Iceberg table was not overwritten."
+                "DIM_PRODUCT canonical source audit failed."
             )
 
         print("[PASS] DIM_PRODUCT canonical source audit completed.")
 
         # -----------------------------------------------------
-        # 5. Prepare final Silver rows
+        # 6. Prepare final Silver rows
         # -----------------------------------------------------
 
         write_df = (
@@ -170,10 +204,7 @@ def main() -> None:
         write_df.createOrReplaceTempView("staged_dim_product")
 
         # -----------------------------------------------------
-        # 6. Atomic full overwrite
-        #
-        # source_df represents the complete canonical SCD2
-        # dataset rebuilt from Bronze.
+        # 7. Full overwrite
         # -----------------------------------------------------
 
         spark.sql(
@@ -195,15 +226,14 @@ def main() -> None:
                 silver_created_at,
                 silver_updated_at
 
-            FROM
-                staged_dim_product
+            FROM staged_dim_product
             """
         )
 
         print("[PASS] DIM_PRODUCT FULL OVERWRITE completed.")
 
         # -----------------------------------------------------
-        # 7. Final Audit
+        # 8. Final audit
         # -----------------------------------------------------
 
         dim_df = spark.table(DIM_PRODUCT)
@@ -246,70 +276,15 @@ def main() -> None:
 
         print(f"Duplicate product_sk: {duplicate_product_sk:,}")
 
-        # -----------------------------------------------------
-        # 7. Current product sample
-        # -----------------------------------------------------
-
-        print()
-        print("CURRENT PRODUCT SAMPLE")
-
-        (
-            dim_df.filter(F.col("is_current"))
-            .select(
-                "product_sk",
-                "product_id",
-                "product_name",
-                "price",
-                "effective_from",
-                "effective_to",
-                "source_kind",
-            )
-            .limit(10)
-            .show(truncate=False)
-        )
-
-        # -----------------------------------------------------
-        # 8. SCD2 history sample
-        # -----------------------------------------------------
-
-        print()
-        print("SCD2 HISTORY SAMPLE")
-
-        product_with_history = (
-            dim_df.groupBy("product_id")
-            .count()
-            .filter(F.col("count") > 1)
-            .orderBy(F.col("count").desc())
-            .select("product_id")
-            .limit(1)
-            .collect()
-        )
-
-        if product_with_history:
-            sample_product = product_with_history[0]["product_id"]
-
-            print(f"Product: {sample_product}")
-
-            (
-                dim_df.filter(F.col("product_id") == sample_product)
-                .orderBy("effective_from")
-                .show(truncate=False)
-            )
-
-        # -----------------------------------------------------
-        # 9. Final result
-        # -----------------------------------------------------
-
-        print()
         print("=" * 100)
 
         if silver_products == silver_current and invalid_current == 0 and duplicate_product_sk == 0:
             print("[PASS] DIM_PRODUCT SCD2 LOAD COMPLETED")
 
         else:
-            print("[FAIL] DIM_PRODUCT SCD2 AUDIT FAILED")
-
-            raise RuntimeError("DIM_PRODUCT audit failed.")
+            raise RuntimeError(
+                "DIM_PRODUCT audit failed."
+            )
 
         print("=" * 100)
 

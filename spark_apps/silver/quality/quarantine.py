@@ -5,29 +5,51 @@ from pyspark.sql import functions as F
 def prepare_quarantine_records(
     df: DataFrame,
     entity_name: str,
-    source_topic: str,
+    source_topic: str | None = None,
 ) -> DataFrame:
     """
     Add standard metadata to invalid Silver records.
-
-    The input DataFrame must contain:
-        _dq_error_reason
-        kafka_partition
-        kafka_offset
     """
+
+    source_column = F.coalesce(
+        F.col("_dq_source_topic")
+        if "_dq_source_topic" in df.columns
+        else F.lit(None).cast("string"),
+        F.lit(source_topic or "unknown_source"),
+    )
+
+    entity_column = F.coalesce(
+        F.col("_dq_entity")
+        if "_dq_entity" in df.columns
+        else F.lit(None).cast("string"),
+        F.lit(entity_name),
+    )
+
+    partition_column = (
+        F.col("kafka_partition").cast("string")
+        if "kafka_partition" in df.columns
+        else F.lit(None).cast("string")
+    )
+
+    offset_column = (
+        F.col("kafka_offset").cast("string")
+        if "kafka_offset" in df.columns
+        else F.lit(None).cast("string")
+    )
+
     return (
         df.withColumn(
             "_dq_quarantine_id",
             F.sha2(
                 F.concat_ws(
                     "||",
-                    F.lit(source_topic),
+                    source_column,
                     F.coalesce(
-                        F.col("kafka_partition").cast("string"),
+                        partition_column,
                         F.lit("unknown_partition"),
                     ),
                     F.coalesce(
-                        F.col("kafka_offset").cast("string"),
+                        offset_column,
                         F.lit("unknown_offset"),
                     ),
                 ),
@@ -36,11 +58,11 @@ def prepare_quarantine_records(
         )
         .withColumn(
             "_dq_entity",
-            F.lit(entity_name),
+            entity_column,
         )
         .withColumn(
             "_dq_source_topic",
-            F.lit(source_topic),
+            source_column,
         )
         .withColumn(
             "_dq_status",
