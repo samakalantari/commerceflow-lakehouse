@@ -302,15 +302,14 @@ def main() -> None:
             """
         )
 
-        if invalid_count > 0:
-            quarantine_df = prepare_quarantine_records(
-                invalid_df,
-                entity_name="user",
-                source_topic=TOPIC_USERS,
-            )
-            write_quarantine(quarantine_df, INVALID_USERS)
+        quarantine_df = prepare_quarantine_records(
+            invalid_df,
+            entity_name="user",
+            source_topic=TOPIC_USERS,
+        )
+        write_quarantine(quarantine_df, INVALID_USERS)
 
-            print(f"[WARN] {invalid_count:,} invalid users written to quarantine.")
+        print(f"[INFO] Current invalid users in quarantine: {invalid_count:,}")
 
         # -----------------------------------------------------
         # 7. Final Audit

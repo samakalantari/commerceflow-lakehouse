@@ -88,6 +88,8 @@ def main() -> None:
             .count()
         )
 
+        invalid_count = invalid_df.count()
+
         print(f"SCD2 versions: {source_count:,}")
         print(f"Distinct products: {distinct_products:,}")
         print(f"Current versions: {current_count:,}")
@@ -98,24 +100,17 @@ def main() -> None:
 
         spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {QUARANTINE_DATABASE}")
 
-        if not invalid_df.isEmpty():
-            quarantine_df = prepare_quarantine_records(
-                invalid_df,
-                entity_name="product",
-            )
+        quarantine_df = prepare_quarantine_records(
+            invalid_df,
+            entity_name="product",
+        )
 
-            write_quarantine(
-                quarantine_df,
-                INVALID_PRODUCTS,
-            )
+        write_quarantine(
+            quarantine_df,
+            INVALID_PRODUCTS,
+        )
 
-            print(
-                "[PASS] Product invalid records written to quarantine."
-            )
-        else:
-            print(
-                "[PASS] No invalid product records found."
-            )
+        print(f"[INFO] Current invalid products in quarantine: {invalid_count:,}")
 
         # -----------------------------------------------------
         # 4. Create DIM_PRODUCT Iceberg table

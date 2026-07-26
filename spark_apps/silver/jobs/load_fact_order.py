@@ -113,14 +113,13 @@ def main() -> None:
 
         spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {QUARANTINE_DATABASE}")
 
-        if invalid_count > 0:
-            quarantine_df = prepare_quarantine_records(
-                invalid_df,
-                entity_name="order",
-                source_topic=TOPIC_ORDERS,
-            )
-            write_quarantine(quarantine_df, INVALID_ORDERS)
-            print(f"[WARN] {invalid_count:,} invalid orders written to quarantine.")
+        quarantine_df = prepare_quarantine_records(
+            invalid_df,
+            entity_name="order",
+            source_topic=TOPIC_ORDERS,
+        )
+        write_quarantine(quarantine_df, INVALID_ORDERS)
+        print(f"[INFO] Current invalid orders in quarantine: {invalid_count:,}")
 
         # -----------------------------------------------------
         # 5. Create Iceberg Fact Table

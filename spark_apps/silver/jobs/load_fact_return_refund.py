@@ -70,14 +70,13 @@ def main() -> None:
             raise RuntimeError("FACT_RETURN_REFUND canonical source audit failed.")
 
         spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {QUARANTINE_DATABASE}")
-        if invalid_count > 0:
-            quarantine_df = prepare_quarantine_records(
-                invalid_df,
-                entity_name="return_refund",
-                source_topic=TOPIC_RETURNS_REFUNDS,
-            )
-            write_quarantine(quarantine_df, INVALID_RETURNS_REFUNDS)
-            print(f"[WARN] {invalid_count:,} returns/refunds written to quarantine.")
+        quarantine_df = prepare_quarantine_records(
+            invalid_df,
+            entity_name="return_refund",
+            source_topic=TOPIC_RETURNS_REFUNDS,
+        )
+        write_quarantine(quarantine_df, INVALID_RETURNS_REFUNDS)
+        print(f"[INFO] Current returns/refunds in quarantine: {invalid_count:,}")
 
         spark.sql(
             f"""

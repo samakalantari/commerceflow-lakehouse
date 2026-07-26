@@ -82,11 +82,7 @@ def write_quarantine(
     df: DataFrame,
     table_name: str,
 ) -> None:
-    """
-    Create an Iceberg quarantine table on first use, then append invalid records.
-    """
-    if df.isEmpty():
-        return
+    """Replace the current quarantine state, creating the table on first use."""
 
     writer = (
         df.writeTo(table_name)
@@ -95,6 +91,6 @@ def write_quarantine(
     )
 
     if df.sparkSession.catalog.tableExists(table_name):
-        writer.append()
+        writer.overwrite(F.lit(True))
     else:
         writer.create()
