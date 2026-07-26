@@ -157,7 +157,7 @@ def test_prepare_quarantine_records_handles_missing_kafka_metadata(
     assert row._dq_source_topic == "transactional.users"
 
 
-def test_write_quarantine_does_nothing_for_empty_dataframe(
+def test_write_quarantine_overwrites_existing_table_with_empty_dataframe(
     spark,
     monkeypatch,
 ) -> None:
@@ -169,23 +169,27 @@ def test_write_quarantine_does_nothing_for_empty_dataframe(
         """,
     )
 
-    write_to_mock = MagicMock()
+    writer_mock = MagicMock()
+    writer_mock.using.return_value = writer_mock
+    writer_mock.tableProperty.return_value = writer_mock
+    write_to_mock = MagicMock(return_value=writer_mock)
 
+    monkeypatch.setattr(empty_df, "writeTo", write_to_mock)
     monkeypatch.setattr(
-        empty_df,
-        "writeTo",
-        write_to_mock,
+        empty_df.sparkSession.catalog,
+        "tableExists",
+        lambda _: True,
     )
 
-    write_quarantine(
-        df=empty_df,
-        table_name="test_catalog.silver_quarantine.invalid_users",
-    )
+    table_name = "test_catalog.silver_quarantine.invalid_users"
+    write_quarantine(df=empty_df, table_name=table_name)
 
-    write_to_mock.assert_not_called()
+    write_to_mock.assert_called_once_with(table_name)
+    writer_mock.overwrite.assert_called_once()
+    writer_mock.append.assert_not_called()
 
 
-def test_write_quarantine_appends_non_empty_dataframe(
+def test_write_quarantine_overwrites_non_empty_dataframe(
     spark,
     monkeypatch,
 ) -> None:
@@ -240,7 +244,8 @@ def test_write_quarantine_appends_non_empty_dataframe(
         "format-version",
         "2",
     )
-    writer_mock.append.assert_called_once_with()
+    writer_mock.overwrite.assert_called_once()
+    writer_mock.append.assert_not_called()
     writer_mock.createOrReplace.assert_not_called()
 
 def test_write_quarantine_creates_missing_table(
@@ -273,5 +278,6 @@ def test_write_quarantine_creates_missing_table(
 
     write_to_mock.assert_called_once_with(table_name)
     writer_mock.create.assert_called_once_with()
+    writer_mock.overwrite.assert_not_called()
     writer_mock.append.assert_not_called()
     writer_mock.createOrReplace.assert_not_called()
