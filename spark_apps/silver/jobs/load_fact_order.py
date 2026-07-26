@@ -46,7 +46,8 @@ def main() -> None:
         ).select(
             "order_id", "user_id", "timestamp", "total",
             "status", "payment_method",
-            "kafka_timestamp", "kafka_partition", "kafka_offset",
+            "kafka_key", "kafka_topic", "kafka_partition", "kafka_offset",
+            "kafka_timestamp", "ingested_at", "year", "month", "day",
         )
 
         dim_user_df = spark.table(DIM_USER)

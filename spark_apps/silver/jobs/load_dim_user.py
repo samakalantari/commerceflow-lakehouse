@@ -49,9 +49,15 @@ def main() -> None:
             "device",
             "loyalty_tier",
             "location",
-            "kafka_timestamp",
+            "kafka_key",
+            "kafka_topic",
             "kafka_partition",
             "kafka_offset",
+            "kafka_timestamp",
+            "ingested_at",
+            "year",
+            "month",
+            "day",
         )
 
         # -----------------------------------------------------

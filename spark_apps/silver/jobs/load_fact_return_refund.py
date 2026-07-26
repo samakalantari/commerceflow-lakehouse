@@ -33,7 +33,8 @@ def main() -> None:
         ).select(
             "return_refund_id", "order_id", "order_item_id",
             "return_reason", "return_timestamp", "refund_amount",
-            "kafka_timestamp", "kafka_partition", "kafka_offset",
+            "kafka_key", "kafka_topic", "kafka_partition", "kafka_offset",
+            "kafka_timestamp", "ingested_at", "year", "month", "day",
         )
         fact_order_item_df = spark.table(FACT_ORDER_ITEM)
 

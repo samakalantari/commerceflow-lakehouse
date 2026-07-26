@@ -47,7 +47,8 @@ def main() -> None:
         ).select(
             "order_item_id", "order_id", "product_id",
             "quantity", "unit_price", "item_total_amount",
-            "kafka_timestamp", "kafka_partition", "kafka_offset",
+            "kafka_key", "kafka_topic", "kafka_partition", "kafka_offset",
+            "kafka_timestamp", "ingested_at", "year", "month", "day",
         )
 
         fact_order_df = spark.table(FACT_ORDER)

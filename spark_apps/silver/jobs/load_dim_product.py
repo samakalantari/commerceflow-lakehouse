@@ -46,7 +46,8 @@ def main() -> None:
             TOPIC_PRODUCTS,
         ).select(
             "product_id", "name", "price",
-            "kafka_timestamp", "kafka_partition", "kafka_offset",
+            "kafka_key", "kafka_topic", "kafka_partition", "kafka_offset",
+            "kafka_timestamp", "ingested_at", "year", "month", "day",
         )
 
         history_df = read_bronze_topic(
@@ -54,7 +55,8 @@ def main() -> None:
             TOPIC_PRODUCT_PRICE_HISTORY,
         ).select(
             "product_id", "price", "valid_from",
-            "kafka_timestamp", "kafka_partition", "kafka_offset",
+            "kafka_key", "kafka_topic", "kafka_partition", "kafka_offset",
+            "kafka_timestamp", "ingested_at", "year", "month", "day",
         )
 
         # -----------------------------------------------------
