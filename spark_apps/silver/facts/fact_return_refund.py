@@ -3,11 +3,14 @@ from __future__ import annotations
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+from pyspark.storagelevel import StorageLevel
 
 
 def build_fact_return_refund_source(
     returns_df: DataFrame,
     fact_order_item_df: DataFrame,
+    *,
+    persist_classified: bool = False,
 ) -> tuple[DataFrame, DataFrame]:
     """Build one canonical row per return_refund_id."""
     normalized = (
@@ -86,6 +89,9 @@ def build_fact_return_refund_source(
         ),
     )
 
+    if persist_classified:
+        validated = validated.persist(StorageLevel.MEMORY_AND_DISK)
+
     base_valid = validated.filter(F.col("_dq_error_reason") == "")
     base_invalid = (
         validated.filter(F.col("_dq_error_reason") != "")
@@ -134,6 +140,9 @@ def build_fact_return_refund_source(
             ),
         )
     )
+
+    if persist_classified:
+        resolved = resolved.persist(StorageLevel.MEMORY_AND_DISK)
 
     relationship_invalid = (
         resolved.filter(F.col("_dq_error_reason") != "")

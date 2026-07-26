@@ -75,6 +75,9 @@ COMMON_SPARK_CONF = {
     "spark.executorEnv.PYTHONDONTWRITEBYTECODE": "1",
     "spark.cores.max": "2",
     "spark.executor.cores": "2",
+    "spark.sql.adaptive.enabled": "true",
+    "spark.sql.adaptive.coalescePartitions.enabled": "true",
+    "spark.sql.shuffle.partitions": "16",
 }
 
 

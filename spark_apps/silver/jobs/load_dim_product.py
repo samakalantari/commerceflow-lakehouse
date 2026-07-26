@@ -1,6 +1,7 @@
 from pyspark.sql import functions as F
 
 from spark_apps.silver.common.bronze_reader import (
+    bronze_topic_paths,
     read_bronze_topic,
 )
 from spark_apps.silver.config.iceberg import (
@@ -35,14 +36,25 @@ def main() -> None:
         # 1. Read Bronze sources
         # -----------------------------------------------------
 
+        for topic in (TOPIC_PRODUCTS, TOPIC_PRODUCT_PRICE_HISTORY):
+            print(f"Bronze input paths for {topic}:")
+            for path in bronze_topic_paths(topic):
+                print(f"  - {path}/year=*/month=*/day=*")
+
         products_df = read_bronze_topic(
             spark,
             TOPIC_PRODUCTS,
+        ).select(
+            "product_id", "name", "price",
+            "kafka_timestamp", "kafka_partition", "kafka_offset",
         )
 
         history_df = read_bronze_topic(
             spark,
             TOPIC_PRODUCT_PRICE_HISTORY,
+        ).select(
+            "product_id", "price", "valid_from",
+            "kafka_timestamp", "kafka_partition", "kafka_offset",
         )
 
         # -----------------------------------------------------
@@ -52,6 +64,7 @@ def main() -> None:
         source_df, invalid_df = build_dim_product_source(
             products_df,
             history_df,
+            persist_classified=True,
         )
 
         source_df = add_unknown_product_member(source_df)

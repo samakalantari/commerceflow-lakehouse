@@ -3,6 +3,7 @@ from __future__ import annotations
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+from pyspark.storagelevel import StorageLevel
 
 from spark_apps.silver.dimensions.dim_product import UNKNOWN_PRODUCT_SK
 AMOUNT_TOLERANCE = 0.01
@@ -12,6 +13,8 @@ def build_fact_order_item_source(
     items_df: DataFrame,
     fact_order_df: DataFrame,
     dim_product_df: DataFrame,
+    *,
+    persist_classified: bool = False,
 ) -> tuple[DataFrame, DataFrame]:
     """
     Build the canonical fact_order_item source.
@@ -176,6 +179,9 @@ def build_fact_order_item_source(
         ),
     )
 
+    if persist_classified:
+        validated_items = validated_items.persist(StorageLevel.MEMORY_AND_DISK)
+
     base_valid_items = validated_items.filter(
         F.col("_dq_error_reason") == ""
     )
@@ -282,6 +288,11 @@ def build_fact_order_item_source(
             F.lit("")
         ),
     )
+
+    if persist_classified:
+        validated_order_relationship = validated_order_relationship.persist(
+            StorageLevel.MEMORY_AND_DISK
+        )
 
     valid_items_with_order = validated_order_relationship.filter(
         F.col("_dq_error_reason") == ""

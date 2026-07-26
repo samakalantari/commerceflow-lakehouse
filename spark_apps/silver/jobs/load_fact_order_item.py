@@ -1,6 +1,7 @@
 from pyspark.sql import functions as F
 
 from spark_apps.silver.common.bronze_reader import (
+    bronze_topic_paths,
     read_bronze_topic,
 )
 from spark_apps.silver.config.iceberg import (
@@ -36,9 +37,17 @@ def main() -> None:
         # 1. Read source data
         # -----------------------------------------------------
 
+        print("Bronze input paths:")
+        for path in bronze_topic_paths(TOPIC_ORDER_ITEMS):
+            print(f"  - {path}/year=*/month=*/day=*")
+
         items_df = read_bronze_topic(
             spark,
             TOPIC_ORDER_ITEMS,
+        ).select(
+            "order_item_id", "order_id", "product_id",
+            "quantity", "unit_price", "item_total_amount",
+            "kafka_timestamp", "kafka_partition", "kafka_offset",
         )
 
         fact_order_df = spark.table(FACT_ORDER)
@@ -53,6 +62,7 @@ def main() -> None:
             items_df,
             fact_order_df,
             dim_product_df,
+            persist_classified=True,
         )
 
         source_df = source_df.cache()

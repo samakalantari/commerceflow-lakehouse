@@ -3,6 +3,7 @@ from __future__ import annotations
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+from pyspark.storagelevel import StorageLevel
 
 from spark_apps.silver.config.tables import (
     TOPIC_PRODUCT_PRICE_HISTORY,
@@ -36,6 +37,8 @@ def add_unknown_product_member(source_df: DataFrame) -> DataFrame:
 def build_dim_product_source(
     products_df: DataFrame,
     price_history_df: DataFrame,
+    *,
+    persist_classified: bool = False,
 ) -> tuple[DataFrame, DataFrame]:
     """
     Build canonical Product SCD Type 2 source.
@@ -127,6 +130,9 @@ def build_dim_product_source(
         ),
     )
 
+    if persist_classified:
+        validated_products = validated_products.persist(StorageLevel.MEMORY_AND_DISK)
+
     valid_products = validated_products.filter(F.col("_dq_error_reason") == "")
 
     invalid_products = (
@@ -193,6 +199,9 @@ def build_dim_product_source(
             ),
         ),
     )
+
+    if persist_classified:
+        validated_history = validated_history.persist(StorageLevel.MEMORY_AND_DISK)
 
     valid_history = validated_history.filter(
         F.col("_dq_error_reason") == ""

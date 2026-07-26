@@ -1,6 +1,9 @@
 from pyspark.sql import functions as F
 
-from spark_apps.silver.common.bronze_reader import read_bronze_topic
+from spark_apps.silver.common.bronze_reader import (
+    bronze_topic_paths,
+    read_bronze_topic,
+)
 from spark_apps.silver.config.iceberg import build_iceberg_spark
 from spark_apps.silver.config.tables import (
     FACT_ORDER_ITEM,
@@ -20,12 +23,24 @@ def main() -> None:
     spark = build_iceberg_spark("silver-load-fact-return-refund")
 
     try:
-        returns_df = read_bronze_topic(spark, TOPIC_RETURNS_REFUNDS)
+        print("Bronze input paths:")
+        for path in bronze_topic_paths(TOPIC_RETURNS_REFUNDS):
+            print(f"  - {path}/year=*/month=*/day=*")
+
+        returns_df = read_bronze_topic(
+            spark,
+            TOPIC_RETURNS_REFUNDS,
+        ).select(
+            "return_refund_id", "order_id", "order_item_id",
+            "return_reason", "return_timestamp", "refund_amount",
+            "kafka_timestamp", "kafka_partition", "kafka_offset",
+        )
         fact_order_item_df = spark.table(FACT_ORDER_ITEM)
 
         source_df, invalid_df = build_fact_return_refund_source(
             returns_df,
             fact_order_item_df,
+            persist_classified=True,
         )
         source_df = source_df.cache()
 

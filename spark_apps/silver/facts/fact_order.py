@@ -3,11 +3,14 @@ from __future__ import annotations
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+from pyspark.storagelevel import StorageLevel
 
 
 def build_fact_order_source(
     orders_df: DataFrame,
     dim_user_df: DataFrame,
+    *,
+    persist_classified: bool = False,
 ) -> tuple[DataFrame, DataFrame]:
     """
     Build the canonical fact_order source.
@@ -144,6 +147,9 @@ def build_fact_order_source(
             ),
         ),
     )
+
+    if persist_classified:
+        validated_orders = validated_orders.persist(StorageLevel.MEMORY_AND_DISK)
 
     # =========================================================
     # 5. Split valid and invalid source orders

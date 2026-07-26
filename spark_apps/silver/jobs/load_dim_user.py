@@ -1,4 +1,5 @@
 from spark_apps.silver.common.bronze_reader import (
+    bronze_topic_paths,
     read_bronze_topic,
 )
 from spark_apps.silver.config.iceberg import (
@@ -31,20 +32,39 @@ def main() -> None:
         # 1. Read Bronze
         # -----------------------------------------------------
 
+        bronze_paths = bronze_topic_paths(TOPIC_USERS)
+
+        print("Bronze input paths:")
+        for path in bronze_paths:
+            print(f"  - {path}/year=*/month=*/day=*")
+
         bronze_df = read_bronze_topic(
             spark,
             TOPIC_USERS,
+        ).select(
+            "user_id",
+            "username",
+            "email",
+            "signup_date",
+            "device",
+            "loyalty_tier",
+            "location",
+            "kafka_timestamp",
+            "kafka_partition",
+            "kafka_offset",
         )
-
-        bronze_count = bronze_df.count()
-
-        print(f"Bronze users: {bronze_count:,}")
 
         # -----------------------------------------------------
         # 2. Clean + Validate
         # -----------------------------------------------------
 
-        valid_df, invalid_df = build_dim_user_source(bronze_df)
+        # Keep the shared normalize/deduplicate/validation result
+        # so the valid and invalid actions do not repeat the same
+        # Bronze scan, shuffle, and Window sort.
+        valid_df, invalid_df = build_dim_user_source(
+            bronze_df,
+            persist_classified=True,
+        )
 
         valid_df = valid_df.cache()
         invalid_df = invalid_df.cache()

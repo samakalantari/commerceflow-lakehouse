@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+from pyspark.storagelevel import StorageLevel
 
 VALID_LOYALTY_TIERS = (
     "Bronze",
@@ -16,6 +15,8 @@ VALID_LOYALTY_TIERS = (
 
 def build_dim_user_source(
     bronze_df: DataFrame,
+    *,
+    persist_classified: bool = False,
 ) -> tuple[DataFrame, DataFrame]:
     """
     Clean and validate Bronze user records.
@@ -141,6 +142,14 @@ def build_dim_user_source(
             ),
         ),
     )
+
+    if persist_classified:
+        # valid_df and invalid_df are two branches of this expensive
+        # lineage. Persisting their common parent prevents the second
+        # branch from rereading Bronze and repeating the Window shuffle.
+        # MEMORY_AND_DISK avoids depending on the whole classified
+        # dataset fitting in executor memory.
+        df = df.persist(StorageLevel.MEMORY_AND_DISK)
 
     # ---------------------------------------------------------
     # 4. Split valid / invalid
