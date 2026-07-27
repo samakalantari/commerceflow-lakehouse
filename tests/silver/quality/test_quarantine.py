@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 from pyspark.sql import functions as F
 
+from spark_apps.silver.quality import quarantine as quarantine_module
 from spark_apps.silver.quality.quarantine import (
     prepare_quarantine_records,
     write_quarantine,
@@ -157,6 +158,29 @@ def test_prepare_quarantine_records_handles_missing_kafka_metadata(
     assert row._dq_source_topic == "transactional.users"
 
 
+def test_align_to_table_schema_adds_missing_and_drops_extra_columns(spark) -> None:
+    target_df = spark.createDataFrame(
+        [("q-1", "hardware")],
+        schema="_dq_quarantine_id STRING, category STRING",
+    )
+    target_df.createOrReplaceTempView("target_quarantine_schema")
+
+    source_df = spark.createDataFrame(
+        [("q-2", "extra")],
+        schema="_dq_quarantine_id STRING, source_only STRING",
+    )
+
+    aligned_df = quarantine_module._align_to_table_schema(
+        source_df,
+        "target_quarantine_schema",
+    )
+    row = aligned_df.first()
+
+    assert aligned_df.columns == ["_dq_quarantine_id", "category"]
+    assert row._dq_quarantine_id == "q-2"
+    assert row.category is None
+
+
 def test_write_quarantine_overwrites_existing_table_with_empty_dataframe(
     spark,
     monkeypatch,
@@ -179,6 +203,11 @@ def test_write_quarantine_overwrites_existing_table_with_empty_dataframe(
         empty_df.sparkSession.catalog,
         "tableExists",
         lambda _: True,
+    )
+    monkeypatch.setattr(
+        quarantine_module,
+        "_align_to_table_schema",
+        lambda source_df, _: source_df,
     )
 
     table_name = "test_catalog.silver_quarantine.invalid_users"
@@ -227,6 +256,12 @@ def test_write_quarantine_overwrites_non_empty_dataframe(
         df.sparkSession.catalog,
         "tableExists",
         lambda _: True,
+    )
+
+    monkeypatch.setattr(
+        quarantine_module,
+        "_align_to_table_schema",
+        lambda source_df, _: source_df,
     )
 
     write_quarantine(

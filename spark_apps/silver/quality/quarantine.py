@@ -78,19 +78,41 @@ def prepare_quarantine_records(
     )
 
 
+def _align_to_table_schema(
+    df: DataFrame,
+    table_name: str,
+) -> DataFrame:
+    """Align a rebuild DataFrame to an existing quarantine table schema."""
+    target_schema = df.sparkSession.table(table_name).schema
+
+    aligned_columns = [
+        (
+            F.col(field.name).cast(field.dataType)
+            if field.name in df.columns
+            else F.lit(None).cast(field.dataType)
+        ).alias(field.name)
+        for field in target_schema.fields
+    ]
+
+    return df.select(*aligned_columns)
+
+
 def write_quarantine(
     df: DataFrame,
     table_name: str,
 ) -> None:
     """Replace the current quarantine state, creating the table on first use."""
 
+    table_exists = df.sparkSession.catalog.tableExists(table_name)
+    write_df = _align_to_table_schema(df, table_name) if table_exists else df
+
     writer = (
-        df.writeTo(table_name)
+        write_df.writeTo(table_name)
         .using("iceberg")
         .tableProperty("format-version", "2")
     )
 
-    if df.sparkSession.catalog.tableExists(table_name):
+    if table_exists:
         writer.overwrite(F.lit(True))
     else:
         writer.create()
