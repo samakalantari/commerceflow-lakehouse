@@ -1,10 +1,14 @@
+import os
 from functools import lru_cache
 
 import requests
 from pyspark.sql.avro.functions import from_avro
 from pyspark.sql.functions import col, expr
 
-SCHEMA_REGISTRY_URL = "http://185.255.90.14:8081"
+SCHEMA_REGISTRY_URL = os.getenv(
+    "SCHEMA_REGISTRY_URL",
+    "http://schema-registry:8081",
+).rstrip("/")
 
 
 @lru_cache(maxsize=32)

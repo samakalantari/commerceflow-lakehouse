@@ -272,6 +272,7 @@ services:
       PYTHONPATH: "/opt/project:/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.7-src.zip"
 
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
       KAFKA_STARTING_OFFSETS: ${KAFKA_STARTING_OFFSETS:-earliest}
       KAFKA_MAX_OFFSETS_PER_TRIGGER: ${KAFKA_MAX_OFFSETS_PER_TRIGGER:-10000}
@@ -295,7 +296,7 @@ services:
 
       CLICKHOUSE_HOST: clickhouse
       CLICKHOUSE_PORT: "8123"
-      CLICKHOUSE_DATABASE: gold
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DB}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
 
@@ -362,6 +363,7 @@ services:
       PYTHONPATH: "/opt/project:/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.7-src.zip"
 
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
       KAFKA_STARTING_OFFSETS: ${KAFKA_STARTING_OFFSETS:-earliest}
       KAFKA_MAX_OFFSETS_PER_TRIGGER: ${KAFKA_MAX_OFFSETS_PER_TRIGGER:-10000}
@@ -383,7 +385,7 @@ services:
 
       CLICKHOUSE_HOST: clickhouse
       CLICKHOUSE_PORT: "8123"
-      CLICKHOUSE_DATABASE: gold
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DB}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
 
@@ -434,6 +436,7 @@ services:
       PYTHONPATH: "/opt/project:/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.7-src.zip"
 
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-transactional.orders}
       KAFKA_STARTING_OFFSETS: ${KAFKA_STARTING_OFFSETS:-earliest}
       KAFKA_MAX_OFFSETS_PER_TRIGGER: ${KAFKA_MAX_OFFSETS_PER_TRIGGER:-10000}
@@ -589,7 +592,7 @@ services:
 
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
 
-      AIRFLOW__WEBSERVER__BASE_URL: "https://airflow.group4.querabootcamp-de.ir"
+      AIRFLOW__WEBSERVER__BASE_URL: "https://airflow.${DOMAIN_SUFFIX}"
       AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX: "true"
 
       AIRFLOW__WEBSERVER__SESSION_BACKEND: securecookie
@@ -685,7 +688,7 @@ services:
 
       CLICKHOUSE_HOST: clickhouse
       CLICKHOUSE_PORT: "8123"
-      CLICKHOUSE_DATABASE: gold
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DB}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
 
@@ -757,7 +760,7 @@ services:
       - statsd-exporter
 
     ports:
-      - "${BIND_IP}:9090:9090"
+      - "${BIND_IP}:${PROMETHEUS_PORT}:9090"
 
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
