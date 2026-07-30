@@ -27,7 +27,7 @@ TOPIC_PARTITION_CONFIG: Dict[
         ),
     },
     "transactional.users": {
-        "timestamp_field": "signup_date",
+        "timestamp_field": "ingested_at",
         "columns": (
             "year",
             "month",
@@ -35,7 +35,7 @@ TOPIC_PARTITION_CONFIG: Dict[
         ),
     },
     "transactional.orders": {
-        "timestamp_field": "timestamp",
+        "timestamp_field": "ingested_at",
         "columns": (
             "year",
             "month",
@@ -51,7 +51,7 @@ TOPIC_PARTITION_CONFIG: Dict[
         ),
     },
     "transactional.returns_refunds": {
-        "timestamp_field": "return_timestamp",
+        "timestamp_field": "ingested_at",
         "columns": (
             "year",
             "month",
@@ -59,7 +59,7 @@ TOPIC_PARTITION_CONFIG: Dict[
         ),
     },
     "transactional.product_price_history": {
-        "timestamp_field": "valid_from",
+        "timestamp_field": "ingested_at",
         "columns": (
             "year",
             "month",
@@ -67,7 +67,7 @@ TOPIC_PARTITION_CONFIG: Dict[
         ),
     },
     "behavioral.events": {
-        "timestamp_field": "timestamp",
+        "timestamp_field": "ingested_at",
         "columns": (
             "year",
             "month",
