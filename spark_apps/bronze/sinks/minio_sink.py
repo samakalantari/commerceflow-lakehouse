@@ -2,23 +2,7 @@ import os
 from typing import Optional
 
 from pyspark.sql import DataFrame
-from pyspark.sql.streaming import StreamingQuery
-
-from spark_apps.bronze.config.topic_metadata import (
-    get_partition_columns,
-)
-
-TOPIC_PATH_OVERRIDES = {
-    "transactional.orders": "transactional/orders_recovery",
-    "transactional.product_price_history": "transactional/product_price_history_recovery",
-    "transactional.users": "transactional/users_recovery",
-}
-
-TOPIC_CHECKPOINT_OVERRIDES = {
-    "transactional.orders": "transactional/orders_recovery",
-    "transactional.product_price_history": "transactional/product_price_history_recovery",
-    "transactional.users": "transactional/users_recovery",
-}
+from pyspark.sql import functions as F
 
 
 def _validate_partition_columns(
@@ -38,42 +22,48 @@ def _validate_partition_columns(
 
 
 def write_bronze_stream(df: DataFrame, topic: str, checkpoint_base: str):
-    partition_columns = get_partition_columns(topic)
-
-    _validate_partition_columns(df=df, partition_columns=partition_columns)
-
-    path = _topic_to_path(topic=topic)
-
+    _validate_partition_columns(df=df, partition_columns=("ingested_at",))
+    base_path = os.environ["BRONZE_KAFKA_BASE_PATH"]
     checkpoint = _topic_to_checkpoint(checkpoint_base=checkpoint_base, topic=topic)
-
-    writer = (
-        df.writeStream.format("parquet")
-        .option("path", path)
+    return (
+        df.writeStream.foreachBatch(
+            lambda batch_df, _: write_bronze_batch(batch_df, topic, base_path, "append")
+        )
         .option("checkpointLocation", checkpoint)
         .outputMode("append")
+        .start()
     )
-
-    if partition_columns:
-        writer = writer.partitionBy(*partition_columns)
-
-    return writer.start()
 
 
 def write_bronze_batch(
     df: DataFrame, topic: str, output_base_path: str, mode: str = "errorifexists"
 ) -> str:
-    partition_columns = get_partition_columns(topic)
-
-    _validate_partition_columns(df=df, partition_columns=partition_columns)
-
+    _validate_partition_columns(df=df, partition_columns=("ingested_at",))
     output_path = _topic_to_path(topic=topic, base_path=output_base_path)
+    dated = df.withColumn("_bronze_ingested_date", F.to_date("ingested_at"))
+    invalid = dated.filter(F.col("_bronze_ingested_date").isNull()).count()
+    if invalid:
+        raise ValueError(f"{invalid} rows have no valid ingested_at date")
 
-    writer = df.write.format("parquet").mode(mode)
-
-    if partition_columns:
-        writer = writer.partitionBy(*partition_columns)
-
-    writer.save(output_path)
+    dates = (
+        dated.select("_bronze_ingested_date")
+        .distinct()
+        .orderBy("_bronze_ingested_date")
+        .collect()
+    )
+    for row in dates:
+        ingested_date = row["_bronze_ingested_date"]
+        date_path = (
+            f"{output_path}/{ingested_date.year:04d}/"
+            f"{ingested_date.month:02d}/{ingested_date.day:02d}"
+        )
+        (
+            dated.filter(F.col("_bronze_ingested_date") == F.lit(ingested_date))
+            .drop("_bronze_ingested_date")
+            .write.format("parquet")
+            .mode(mode)
+            .save(date_path)
+        )
 
     return output_path
 
@@ -87,12 +77,7 @@ def _topic_to_path(
 
     base = base_path.rstrip("/")
 
-    topic_path = TOPIC_PATH_OVERRIDES.get(
-        topic,
-        topic.replace(".", "/"),
-    )
-
-    return f"{base}/{topic_path}"
+    return f"{base}/{topic.replace('.', '/')}/new_data"
 
 
 def _topic_to_checkpoint(
@@ -101,12 +86,7 @@ def _topic_to_checkpoint(
 ) -> str:
     base = checkpoint_base.rstrip("/")
 
-    topic_path = TOPIC_CHECKPOINT_OVERRIDES.get(
-        topic,
-        topic.replace(".", "/"),
-    )
-
-    return f"{base}/{topic_path}"
+    return f"{base}/{topic.replace('.', '/')}/new_data"
 
 def test_write_categories_with_ingestion_time_partitioning(
     monkeypatch,
