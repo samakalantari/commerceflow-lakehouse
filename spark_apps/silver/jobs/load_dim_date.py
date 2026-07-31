@@ -4,7 +4,9 @@ from pyspark.sql import functions as F
 
 from spark_apps.silver.common.bronze_reader import (
     read_bronze_topic,
+    split_tombstones,
 )
+from spark_apps.silver.common.job_arguments import get_source_selection
 from spark_apps.silver.config.iceberg import (
     build_iceberg_spark,
 )
@@ -25,6 +27,8 @@ DEFAULT_FUTURE_END_DATE = date(
 
 def main() -> None:
 
+    source = get_source_selection()
+
     spark = build_iceberg_spark("silver-load-dim-date")
 
     try:
@@ -39,6 +43,13 @@ def main() -> None:
         orders_df = read_bronze_topic(
             spark,
             TOPIC_ORDERS,
+            ingested_date=source.ingested_date,
+            source_mode=source.mode,
+        )
+        orders_df, _ = split_tombstones(
+            orders_df,
+            business_key="order_id",
+            payload_columns=("order_id", "user_id", "timestamp", "total", "status", "payment_method"),
         )
 
         bounds = orders_df.select(

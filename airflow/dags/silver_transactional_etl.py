@@ -1,3 +1,4 @@
+from typing import List, Optional
 from datetime import timedelta
 
 import pendulum
@@ -119,6 +120,8 @@ DEFAULT_ARGS = {
 def silver_spark_task(
     task_id: str,
     application: str,
+    *,
+    application_args: Optional[List[str]] = None,
 ) -> SparkSubmitOperator:
     """
     Create a SparkSubmitOperator with the common configuration
@@ -129,6 +132,7 @@ def silver_spark_task(
         task_id=task_id,
         conn_id=SPARK_CONN_ID,
         application=application,
+        application_args=application_args,
         packages=SPARK_PACKAGES,
         conf=COMMON_SPARK_CONF,
         env_vars=COMMON_ENV_VARS,
@@ -153,9 +157,8 @@ with DAG(
         17,
         tz="UTC",
     ),
-    # Run once per day
-    # schedule="@daily",
-    schedule="0 */6 * * *",
+    # Each run processes the completed UTC Bronze ingestion-date directory.
+    schedule="@daily",
     catchup=False,
     # Prevent two Silver pipelines from writing concurrently
     max_active_runs=1,
@@ -167,6 +170,13 @@ with DAG(
         "iceberg",
     ],
 ) as dag:
+    source_args = [
+        "--source-mode",
+        "{{ dag_run.conf.get('source_mode', 'daily') if dag_run.conf else 'daily' }}",
+        "--ingested-date",
+        "{{ data_interval_start.in_timezone('UTC').strftime('%Y-%m-%d') }}",
+    ]
+
     # ========================================================
     # 1. Bootstrap Silver / Iceberg
     #
@@ -191,6 +201,7 @@ with DAG(
     load_dim_date = silver_spark_task(
         task_id="load_dim_date",
         application=("/opt/project/spark_apps/silver/jobs/load_dim_date.py"),
+        application_args=source_args,
     )
 
     # ========================================================
@@ -207,6 +218,7 @@ with DAG(
     load_dim_user = silver_spark_task(
         task_id="load_dim_user",
         application=("/opt/project/spark_apps/silver/jobs/load_dim_user.py"),
+        application_args=source_args,
     )
 
     # ========================================================
@@ -222,6 +234,7 @@ with DAG(
     load_dim_product = silver_spark_task(
         task_id="load_dim_product",
         application=("/opt/project/spark_apps/silver/jobs/load_dim_product.py"),
+        application_args=source_args,
     )
 
     # ========================================================
@@ -237,6 +250,7 @@ with DAG(
     load_fact_order = silver_spark_task(
         task_id="load_fact_order",
         application=("/opt/project/spark_apps/silver/jobs/load_fact_order.py"),
+        application_args=source_args,
     )
 
     # ========================================================
@@ -256,6 +270,7 @@ with DAG(
     load_fact_order_item = silver_spark_task(
         task_id="load_fact_order_item",
         application=("/opt/project/spark_apps/silver/jobs/load_fact_order_item.py"),
+        application_args=source_args,
     )
 
     # ========================================================
@@ -267,6 +282,7 @@ with DAG(
         application=(
             "/opt/project/spark_apps/silver/jobs/load_fact_return_refund.py"
         ),
+        application_args=source_args,
     )
 
     # ========================================================

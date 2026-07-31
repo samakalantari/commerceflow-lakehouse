@@ -181,107 +181,57 @@ def test_align_to_table_schema_adds_missing_and_drops_extra_columns(spark) -> No
     assert row.category is None
 
 
-def test_write_quarantine_overwrites_existing_table_with_empty_dataframe(
+def test_write_quarantine_merges_existing_table_with_empty_dataframe(
     spark,
     monkeypatch,
 ) -> None:
     empty_df = spark.createDataFrame(
         [],
-        schema="""
-            _dq_quarantine_id STRING,
-            _dq_error_reason STRING
-        """,
+        schema="_dq_quarantine_id STRING, _dq_error_reason STRING",
     )
-
-    writer_mock = MagicMock()
-    writer_mock.using.return_value = writer_mock
-    writer_mock.tableProperty.return_value = writer_mock
-    write_to_mock = MagicMock(return_value=writer_mock)
-
-    monkeypatch.setattr(empty_df, "writeTo", write_to_mock)
+    sql_mock = MagicMock()
+    monkeypatch.setattr(empty_df.sparkSession, "sql", sql_mock)
     monkeypatch.setattr(
-        empty_df.sparkSession.catalog,
-        "tableExists",
-        lambda _: True,
+        empty_df.sparkSession.catalog, "tableExists", lambda _: True
     )
     monkeypatch.setattr(
-        quarantine_module,
-        "_align_to_table_schema",
-        lambda source_df, _: source_df,
+        quarantine_module, "_align_to_table_schema", lambda source_df, _: source_df
     )
 
-    table_name = "test_catalog.silver_quarantine.invalid_users"
-    write_quarantine(df=empty_df, table_name=table_name)
+    write_quarantine(
+        df=empty_df,
+        table_name="test_catalog.silver_quarantine.invalid_users",
+    )
 
-    write_to_mock.assert_called_once_with(table_name)
-    writer_mock.overwrite.assert_called_once()
-    writer_mock.append.assert_not_called()
+    merge_sql = sql_mock.call_args.args[0]
+    assert "MERGE INTO test_catalog.silver_quarantine.invalid_users" in merge_sql
+    assert "ON target._dq_quarantine_id = source._dq_quarantine_id" in merge_sql
 
 
-def test_write_quarantine_overwrites_non_empty_dataframe(
+def test_write_quarantine_merges_non_empty_dataframe(
     spark,
     monkeypatch,
 ) -> None:
     df = spark.createDataFrame(
-        [
-            {
-                "_dq_quarantine_id": "quarantine-1",
-                "_dq_error_reason": "invalid_email",
-            }
-        ]
+        [("quarantine-1", "invalid_email")],
+        schema="_dq_quarantine_id STRING, _dq_error_reason STRING",
     )
-
-    writer_mock = MagicMock()
-
-    writer_mock.using.return_value = writer_mock
-    writer_mock.tableProperty.return_value = writer_mock
-
-    write_to_mock = MagicMock(
-        return_value=writer_mock,
-    )
-
+    sql_mock = MagicMock()
+    monkeypatch.setattr(df.sparkSession, "sql", sql_mock)
+    monkeypatch.setattr(df.sparkSession.catalog, "tableExists", lambda _: True)
     monkeypatch.setattr(
-        df,
-        "writeTo",
-        write_to_mock,
-    )
-
-    table_name = (
-        "test_catalog."
-        "silver_quarantine."
-        "invalid_users"
-    )
-
-    monkeypatch.setattr(
-        df.sparkSession.catalog,
-        "tableExists",
-        lambda _: True,
-    )
-
-    monkeypatch.setattr(
-        quarantine_module,
-        "_align_to_table_schema",
-        lambda source_df, _: source_df,
+        quarantine_module, "_align_to_table_schema", lambda source_df, _: source_df
     )
 
     write_quarantine(
         df=df,
-        table_name=table_name,
+        table_name="test_catalog.silver_quarantine.invalid_users",
     )
 
-    write_to_mock.assert_called_once_with(
-        table_name
-    )
-    writer_mock.using.assert_called_once_with(
-        "iceberg"
-    )
-    writer_mock.tableProperty.assert_called_once_with(
-        "format-version",
-        "2",
-    )
-    writer_mock.overwrite.assert_called_once()
-    writer_mock.append.assert_not_called()
-    writer_mock.createOrReplace.assert_not_called()
+    merge_sql = sql_mock.call_args.args[0]
+    assert "WHEN MATCHED THEN UPDATE SET *" in merge_sql
+    assert "WHEN NOT MATCHED THEN INSERT *" in merge_sql
+
 
 def test_write_quarantine_creates_missing_table(
     spark,

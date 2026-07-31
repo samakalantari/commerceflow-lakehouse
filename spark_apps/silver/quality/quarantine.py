@@ -101,18 +101,26 @@ def write_quarantine(
     df: DataFrame,
     table_name: str,
 ) -> None:
-    """Replace the current quarantine state, creating the table on first use."""
+    """Upsert quarantine records by their deterministic message identifier."""
 
     table_exists = df.sparkSession.catalog.tableExists(table_name)
     write_df = _align_to_table_schema(df, table_name) if table_exists else df
 
-    writer = (
-        write_df.writeTo(table_name)
-        .using("iceberg")
-        .tableProperty("format-version", "2")
-    )
-
     if table_exists:
-        writer.overwrite(F.lit(True))
+        write_df.createOrReplaceTempView("staged_quarantine_records")
+        df.sparkSession.sql(
+            f"""
+            MERGE INTO {table_name} AS target
+            USING staged_quarantine_records AS source
+            ON target._dq_quarantine_id = source._dq_quarantine_id
+            WHEN MATCHED THEN UPDATE SET *
+            WHEN NOT MATCHED THEN INSERT *
+            """
+        )
     else:
-        writer.create()
+        (
+            write_df.writeTo(table_name)
+            .using("iceberg")
+            .tableProperty("format-version", "2")
+            .create()
+        )

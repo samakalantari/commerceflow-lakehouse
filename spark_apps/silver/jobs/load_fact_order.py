@@ -1,15 +1,20 @@
 from pyspark.sql import functions as F
 
 from spark_apps.silver.common.bronze_reader import (
-    bronze_topic_paths,
+    bronze_topic_day_path,
     read_bronze_topic,
+    split_tombstones,
+    apply_tombstone_deletes,
 )
+from spark_apps.silver.common.job_arguments import get_source_selection
 from spark_apps.silver.config.iceberg import (
     build_iceberg_spark,
 )
 from spark_apps.silver.config.tables import (
     DIM_USER,
     FACT_ORDER,
+    FACT_ORDER_ITEM,
+    FACT_RETURN_REFUND,
     INVALID_ORDERS,
     QUARANTINE_DATABASE,
     TOPIC_ORDERS,
@@ -25,6 +30,8 @@ from spark_apps.silver.quality.quarantine import (
 
 def main() -> None:
 
+    source = get_source_selection()
+
     spark = build_iceberg_spark("silver-load-fact-order")
 
     try:
@@ -35,19 +42,23 @@ def main() -> None:
         # -----------------------------------------------------
         # 1. Read source data
         # -----------------------------------------------------
-
-        print("Bronze input paths:")
-        for path in bronze_topic_paths(TOPIC_ORDERS):
-            print(f"  - {path}/year=*/month=*/day=*")
+        print(f"Bronze source mode: {source.mode}")
 
         orders_df = read_bronze_topic(
             spark,
             TOPIC_ORDERS,
+            ingested_date=source.ingested_date,
+            source_mode=source.mode,
         ).select(
             "order_id", "user_id", "timestamp", "total",
             "status", "payment_method",
             "kafka_key", "kafka_topic", "kafka_partition", "kafka_offset",
-            "kafka_timestamp", "ingested_at", "year", "month", "day",
+            "kafka_timestamp", "ingested_at",
+        )
+        orders_df, order_tombstones = split_tombstones(
+            orders_df,
+            business_key="order_id",
+            payload_columns=("order_id", "user_id", "timestamp", "total", "status", "payment_method"),
         )
 
         dim_user_df = spark.table(DIM_USER)
@@ -152,6 +163,20 @@ def main() -> None:
             """
         )
 
+        if source.mode == "daily":
+            apply_tombstone_deletes(
+                spark, table_name=FACT_RETURN_REFUND, business_key="order_id",
+                tombstones=order_tombstones, view_name="deleted_orders"
+            )
+            apply_tombstone_deletes(
+                spark, table_name=FACT_ORDER_ITEM, business_key="order_id",
+                tombstones=order_tombstones, view_name="deleted_orders"
+            )
+            apply_tombstone_deletes(
+                spark, table_name=FACT_ORDER, business_key="order_id",
+                tombstones=order_tombstones, view_name="deleted_orders"
+            )
+
         # -----------------------------------------------------
         # 6. Prepare final rows
         # -----------------------------------------------------
@@ -191,9 +216,19 @@ def main() -> None:
         # canonical source to remove stale or duplicate rows.
         # -----------------------------------------------------
 
-        (write_df.writeTo(FACT_ORDER).overwrite(F.lit(True)))
+        write_df.createOrReplaceTempView("staged_fact_order")
+        spark.sql(
+            f"""
+            MERGE INTO {FACT_ORDER} AS target
+            USING staged_fact_order AS source
+            ON target.order_id = source.order_id
+            WHEN MATCHED AND source.source_kafka_timestamp > target.source_kafka_timestamp
+                THEN UPDATE SET *
+            WHEN NOT MATCHED THEN INSERT *
+            """
+        )
 
-        print("[PASS] FACT_ORDER FULL OVERWRITE completed.")
+        print("[PASS] FACT_ORDER incremental MERGE completed.")
 
         # -----------------------------------------------------
         # 8. Final Audit

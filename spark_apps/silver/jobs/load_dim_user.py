@@ -1,12 +1,16 @@
 from spark_apps.silver.common.bronze_reader import (
-    bronze_topic_paths,
+    bronze_topic_day_path,
     read_bronze_topic,
+    split_tombstones,
+    apply_tombstone_deletes,
 )
+from spark_apps.silver.common.job_arguments import get_source_selection
 from spark_apps.silver.config.iceberg import (
     build_iceberg_spark,
 )
 from spark_apps.silver.config.tables import (
     DIM_USER,
+    FACT_ORDER,
     INVALID_USERS,
     QUARANTINE_DATABASE,
     TOPIC_USERS,
@@ -21,6 +25,8 @@ from spark_apps.silver.quality.quarantine import (
 
 
 def main() -> None:
+
+    source = get_source_selection()
     spark = build_iceberg_spark("silver-load-dim-user")
 
     try:
@@ -31,16 +37,13 @@ def main() -> None:
         # -----------------------------------------------------
         # 1. Read Bronze
         # -----------------------------------------------------
-
-        bronze_paths = bronze_topic_paths(TOPIC_USERS)
-
-        print("Bronze input paths:")
-        for path in bronze_paths:
-            print(f"  - {path}/year=*/month=*/day=*")
+        print(f"Bronze source mode: {source.mode}")
 
         bronze_df = read_bronze_topic(
             spark,
             TOPIC_USERS,
+            ingested_date=source.ingested_date,
+            source_mode=source.mode,
         ).select(
             "user_id",
             "username",
@@ -55,9 +58,11 @@ def main() -> None:
             "kafka_offset",
             "kafka_timestamp",
             "ingested_at",
-            "year",
-            "month",
-            "day",
+        )
+        bronze_df, user_tombstones = split_tombstones(
+            bronze_df,
+            business_key="user_id",
+            payload_columns=("user_id", "username", "email", "signup_date", "device", "loyalty_tier", "location"),
         )
 
         # -----------------------------------------------------
@@ -206,6 +211,32 @@ def main() -> None:
         # -----------------------------------------------------
         # 5. Type 1 MERGE
         # -----------------------------------------------------
+
+        if source.mode == "daily":
+            user_tombstones.createOrReplaceTempView("deleted_users")
+            spark.sql(
+                f"""
+                CREATE OR REPLACE TEMP VIEW deleted_user_sks AS
+                SELECT DISTINCT dim.user_sk
+                FROM {DIM_USER} AS dim
+                INNER JOIN deleted_users AS deleted
+                    ON dim.user_id = deleted.user_id
+                """
+            )
+            spark.sql(
+                f"""
+                MERGE INTO {FACT_ORDER} AS target
+                USING deleted_user_sks AS source
+                ON target.user_sk = source.user_sk
+                WHEN MATCHED THEN UPDATE SET
+                    target.user_sk = CAST(-1 AS BIGINT),
+                    target.silver_updated_at = current_timestamp()
+                """
+            )
+            apply_tombstone_deletes(
+                spark, table_name=DIM_USER, business_key="user_id",
+                tombstones=user_tombstones, view_name="deleted_users"
+            )
 
         valid_df.createOrReplaceTempView("staged_dim_user")
 

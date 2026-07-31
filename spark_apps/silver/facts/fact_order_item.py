@@ -161,16 +161,10 @@ def build_fact_order_item_source(
                 & F.col("unit_price").isNotNull()
                 & F.col("item_total_amount").isNotNull()
                 & (
-                    F.abs(
-                        F.col("item_total_amount")
-                        - (
-                            F.col("quantity")
-                            * F.col("unit_price")
-                        )
-                    )
-                    > F.lit(AMOUNT_TOLERANCE)
+                    F.col("item_total_amount")
+                    > (F.col("quantity") * F.col("unit_price") + F.lit(AMOUNT_TOLERANCE))
                 ),
-                F.lit("item_total_mismatch"),
+                F.lit("item_total_exceeds_gross"),
             ),
             F.when(
                 F.col("kafka_timestamp").isNull(),

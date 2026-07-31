@@ -1,14 +1,18 @@
 from pyspark.sql import functions as F
 
 from spark_apps.silver.common.bronze_reader import (
-    bronze_topic_paths,
+    bronze_topic_day_path,
     read_bronze_topic,
+    split_tombstones,
+    apply_tombstone_deletes,
 )
+from spark_apps.silver.common.job_arguments import get_source_selection
 from spark_apps.silver.config.iceberg import (
     build_iceberg_spark,
 )
 from spark_apps.silver.config.tables import (
     DIM_PRODUCT,
+    FACT_ORDER_ITEM,
     INVALID_PRODUCTS,
     QUARANTINE_DATABASE,
     TOPIC_PRODUCT_PRICE_HISTORY,
@@ -25,6 +29,8 @@ from spark_apps.silver.quality.quarantine import (
 
 
 def main() -> None:
+
+    source = get_source_selection()
     spark = build_iceberg_spark("silver-load-dim-product")
 
     try:
@@ -37,27 +43,40 @@ def main() -> None:
         # -----------------------------------------------------
 
         for topic in (TOPIC_PRODUCTS, TOPIC_PRODUCT_PRICE_HISTORY):
-            print(f"Bronze input paths for {topic}:")
-            for path in bronze_topic_paths(topic):
-                print(f"  - {path}/year=*/month=*/day=*")
+            print(f"Bronze source mode for {topic}: {source.mode}")
 
         products_df = read_bronze_topic(
             spark,
             TOPIC_PRODUCTS,
+            ingested_date=source.ingested_date,
+            source_mode=source.mode,
         ).select(
             "product_id", "name", "price",
             "kafka_key", "kafka_topic", "kafka_partition", "kafka_offset",
-            "kafka_timestamp", "ingested_at", "year", "month", "day",
+            "kafka_timestamp", "ingested_at",
         )
 
         history_df = read_bronze_topic(
             spark,
             TOPIC_PRODUCT_PRICE_HISTORY,
+            ingested_date=source.ingested_date,
+            source_mode=source.mode,
         ).select(
             "product_id", "price", "valid_from",
             "kafka_key", "kafka_topic", "kafka_partition", "kafka_offset",
-            "kafka_timestamp", "ingested_at", "year", "month", "day",
+            "kafka_timestamp", "ingested_at",
         )
+        products_df, product_tombstones = split_tombstones(
+            products_df,
+            business_key="product_id",
+            payload_columns=("product_id", "name", "price"),
+        )
+        history_df, history_tombstones = split_tombstones(
+            history_df,
+            business_key="product_id",
+            payload_columns=("product_id", "price", "valid_from"),
+        )
+        product_tombstones = product_tombstones.unionByName(history_tombstones).distinct()
 
         # -----------------------------------------------------
         # 2. Build canonical SCD Type 2 source
@@ -217,7 +236,44 @@ def main() -> None:
             )
         )
 
+        if source.mode == "daily":
+            product_tombstones.createOrReplaceTempView("deleted_products")
+            spark.sql(
+                f"""
+                MERGE INTO {FACT_ORDER_ITEM} AS target
+                USING deleted_products AS source
+                ON target.product_id = source.product_id
+                WHEN MATCHED THEN UPDATE SET
+                    target.product_sk = CAST(0 AS BIGINT),
+                    target.product_resolution = 'unknown_product',
+                    target.silver_updated_at = current_timestamp()
+                """
+            )
+            apply_tombstone_deletes(
+                spark, table_name=DIM_PRODUCT, business_key="product_id",
+                tombstones=product_tombstones, view_name="deleted_products"
+            )
+
         write_df.createOrReplaceTempView("staged_dim_product")
+
+        spark.sql(
+            f"""
+            MERGE INTO {DIM_PRODUCT} AS target
+            USING (
+                SELECT product_id, min(effective_from) AS effective_from
+                FROM staged_dim_product
+                WHERE product_id <> '__UNKNOWN__'
+                GROUP BY product_id
+            ) AS source
+            ON target.product_id = source.product_id
+               AND target.is_current
+               AND target.effective_from < source.effective_from
+            WHEN MATCHED THEN UPDATE SET
+                target.effective_to = source.effective_from,
+                target.is_current = false,
+                target.silver_updated_at = current_timestamp()
+            """
+        )
 
         # -----------------------------------------------------
         # 7. Full overwrite
@@ -225,28 +281,16 @@ def main() -> None:
 
         spark.sql(
             f"""
-            INSERT OVERWRITE TABLE
-                {DIM_PRODUCT}
-
-            SELECT
-                product_sk,
-                product_id,
-                product_name,
-                CAST(price AS DECIMAL(10,2)),
-                effective_from,
-                effective_to,
-                is_current,
-                record_hash,
-                source_kind,
-                source_kafka_timestamp,
-                silver_created_at,
-                silver_updated_at
-
-            FROM staged_dim_product
+            MERGE INTO {DIM_PRODUCT} AS target
+            USING staged_dim_product AS source
+            ON target.product_sk = source.product_sk
+            WHEN MATCHED AND source.source_kafka_timestamp > target.source_kafka_timestamp
+                THEN UPDATE SET *
+            WHEN NOT MATCHED THEN INSERT *
             """
         )
 
-        print("[PASS] DIM_PRODUCT FULL OVERWRITE completed.")
+        print("[PASS] DIM_PRODUCT incremental MERGE completed.")
 
         # -----------------------------------------------------
         # 8. Final audit

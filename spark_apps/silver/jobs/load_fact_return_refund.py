@@ -1,9 +1,12 @@
 from pyspark.sql import functions as F
 
 from spark_apps.silver.common.bronze_reader import (
-    bronze_topic_paths,
+    bronze_topic_day_path,
     read_bronze_topic,
+    split_tombstones,
+    apply_tombstone_deletes,
 )
+from spark_apps.silver.common.job_arguments import get_source_selection
 from spark_apps.silver.config.iceberg import build_iceberg_spark
 from spark_apps.silver.config.tables import (
     FACT_ORDER_ITEM,
@@ -20,21 +23,28 @@ from spark_apps.silver.quality.quarantine import (
 
 
 def main() -> None:
+
+    source = get_source_selection()
     spark = build_iceberg_spark("silver-load-fact-return-refund")
 
     try:
-        print("Bronze input paths:")
-        for path in bronze_topic_paths(TOPIC_RETURNS_REFUNDS):
-            print(f"  - {path}/year=*/month=*/day=*")
+        print(f"Bronze source mode: {source.mode}")
 
         returns_df = read_bronze_topic(
             spark,
             TOPIC_RETURNS_REFUNDS,
+            ingested_date=source.ingested_date,
+            source_mode=source.mode,
         ).select(
             "return_refund_id", "order_id", "order_item_id",
             "return_reason", "return_timestamp", "refund_amount",
             "kafka_key", "kafka_topic", "kafka_partition", "kafka_offset",
-            "kafka_timestamp", "ingested_at", "year", "month", "day",
+            "kafka_timestamp", "ingested_at",
+        )
+        returns_df, return_tombstones = split_tombstones(
+            returns_df,
+            business_key="return_refund_id",
+            payload_columns=("return_refund_id", "order_id", "order_item_id", "return_reason", "return_timestamp", "refund_amount"),
         )
         fact_order_item_df = spark.table(FACT_ORDER_ITEM)
 
@@ -102,11 +112,27 @@ def main() -> None:
             """
         )
 
+        if source.mode == "daily":
+            apply_tombstone_deletes(
+                spark, table_name=FACT_RETURN_REFUND, business_key="return_refund_id",
+                tombstones=return_tombstones, view_name="deleted_returns"
+            )
+
         write_df = (
             source_df.withColumn("silver_created_at", F.current_timestamp())
             .withColumn("silver_updated_at", F.current_timestamp())
         )
-        write_df.writeTo(FACT_RETURN_REFUND).overwrite(F.lit(True))
+        write_df.createOrReplaceTempView("staged_fact_return_refund")
+        spark.sql(
+            f"""
+            MERGE INTO {FACT_RETURN_REFUND} AS target
+            USING staged_fact_return_refund AS source
+            ON target.return_refund_id = source.return_refund_id
+            WHEN MATCHED AND source.source_kafka_timestamp > target.source_kafka_timestamp
+                THEN UPDATE SET *
+            WHEN NOT MATCHED THEN INSERT *
+            """
+        )
 
         fact_df = spark.table(FACT_RETURN_REFUND)
         fact_count = fact_df.count()

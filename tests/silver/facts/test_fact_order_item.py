@@ -62,7 +62,7 @@ def test_fact_order_item_quarantines_field_and_parent_order_failures(spark):
     assert "missing_order_id" in field_error._dq_error_reason
     assert "missing_product_id" in field_error._dq_error_reason
     assert "non_positive_quantity" in field_error._dq_error_reason
-    assert "item_total_mismatch" in field_error._dq_error_reason
+    assert "item_total_exceeds_gross" in field_error._dq_error_reason
 
     orphan = invalid[2]
     assert orphan._dq_entity == "order_item"
