@@ -1,3 +1,4 @@
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from typing import List, Optional
 from datetime import timedelta
 
@@ -74,8 +75,8 @@ COMMON_SPARK_CONF = {
     "spark.executorEnv.PYSPARK_PYTHON": "/opt/bitnami/python/bin/python3",
     "spark.executorEnv.PYTHONPATH": "/opt/project",
     "spark.executorEnv.PYTHONDONTWRITEBYTECODE": "1",
-    "spark.cores.max": "2",
-    "spark.executor.cores": "2",
+    "spark.cores.max": "1",
+    "spark.executor.cores": "1",
     "spark.sql.adaptive.enabled": "true",
     "spark.sql.adaptive.coalescePartitions.enabled": "true",
     "spark.sql.shuffle.partitions": "16",
@@ -303,6 +304,25 @@ with DAG(
         application=("/opt/project/spark_apps/silver/jobs/audit_silver.py"),
     )
 
+    #9. Trigger Gold Layer
+    trigger_transactional_gold = TriggerDagRunOperator(
+    task_id="trigger_transactional_gold",
+    trigger_dag_id="gold_transactional_etl",
+
+    conf={
+        "triggered_by": "silver_transactional_etl",
+        "silver_run_id": "{{ run_id }}",
+        "ingested_date": (
+            "{{ data_interval_start.in_timezone('UTC').strftime('%Y-%m-%d') }}"
+        ),
+    },
+
+    wait_for_completion=False,
+
+    retries=0,
+    )
+
+
     # ========================================================
     # Pipeline Dependency Graph
     # ========================================================
@@ -316,4 +336,5 @@ with DAG(
         >> load_fact_order_item
         >> load_fact_return_refund
         >> audit_silver
+        >> trigger_transactional_gold
     )

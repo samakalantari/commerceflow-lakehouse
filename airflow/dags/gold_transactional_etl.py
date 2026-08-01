@@ -1,3 +1,4 @@
+from airflow.operators.bash import BashOperator
 from datetime import timedelta
 
 import pendulum
@@ -104,9 +105,24 @@ with DAG(
         application=("/opt/project/spark_apps/gold/jobs/load_transactional_obt.py"),
     )
 
+    load_return_refund_obt = gold_spark_task(
+        task_id="load_return_refund_obt",
+        application=("/opt/project/spark_apps/gold/jobs/load_return_refund_obt.py"),
+    )
+
     audit_gold = gold_spark_task(
         task_id=("audit_gold"),
         application=("/opt/project/spark_apps/gold/jobs/audit_gold.py"),
     )
+    cleanup_transactional_staging = BashOperator(
+    task_id="cleanup_transactional_staging",
+    bash_command=(
+        "PYTHONPATH=/opt/project "
+        "python3 "
+        "/opt/project/spark_apps/gold/jobs/"
+        "cleanup_transactional_staging.py"
+    ),
+    retries=1,
+    )
 
-    (load_transactional_obt >> audit_gold)
+    (load_transactional_obt >> load_return_refund_obt >> audit_gold >> cleanup_transactional_staging)
