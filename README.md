@@ -1,6 +1,3 @@
-Here's a README based on the pipeline described in `pasted-text.txt`. Note: I only read `pasted-text.txt` this turn, so the PDF's official project title and architecture diagram aren't reflected yet.
-
-```markdown
 # CommerceFlow Lakehouse
 
 An end-to-end data engineering project that ingests transactional and behavioral
@@ -22,7 +19,6 @@ Design goals (`pasted-text.txt`):
 
 ## Architecture
 
-```
 Kafka (Avro + Schema Registry)
         │
         ▼
