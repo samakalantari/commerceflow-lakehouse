@@ -18,7 +18,7 @@ Design goals (`pasted-text.txt`):
 - Repeatable execution with audit, monitoring, and recovery
 
 ## Architecture
-
+```
 Kafka (Avro + Schema Registry)
         │
         ▼
@@ -33,7 +33,7 @@ Kafka (Avro + Schema Registry)
         │
         ▼
      Metabase dashboards
-
+```
 ### Bronze
 Decodes Avro messages via Schema Registry and persists them as Parquet with minimal
 structural change. Kafka `topic`, `partition`, `offset`, `timestamp`, `key`, and
