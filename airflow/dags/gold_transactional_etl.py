@@ -43,6 +43,9 @@ COMMON_SPARK_CONF = {
     # Dataset is moderate;
     # avoid excessive tiny shuffle tasks.
     "spark.sql.shuffle.partitions": "8",
+
+    "spark.driver.extraJavaOptions": "-Dclickhouse.jdbc.v1=true",
+    "spark.executor.extraJavaOptions": "-Dclickhouse.jdbc.v1=true",
 }
 
 
